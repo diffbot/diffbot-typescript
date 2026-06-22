@@ -8,9 +8,6 @@ export const authConfig = {
   credentialsPath: join(homedir(), ".diffbot", "credentials"),
 };
 
-/** @deprecated Use authConfig.credentialsPath */
-export const CREDENTIALS_PATH = authConfig.credentialsPath;
-
 function readCredentialsFile(path = authConfig.credentialsPath): string {
   if (!existsSync(path)) {
     return "";

@@ -1,8 +1,9 @@
+import type { DiffbotClient } from "./client.js";
 import { ExtractionError } from "./errors.js";
 import { raiseForStatus, readBodyText } from "./http.js";
-import type { DiffbotClientLike, JsonObject } from "./types.js";
+import type { JsonObject } from "./json.js";
 
-function buildParams(client: DiffbotClientLike, url: string, fmt: string) {
+function buildParams(client: DiffbotClient, url: string, fmt: string) {
   const params: Record<string, string | number> = {
     token: client.token,
     url,
@@ -29,7 +30,7 @@ function normalizeUrl(url: string): string {
 }
 
 export async function extract(
-  client: DiffbotClientLike,
+  client: DiffbotClient,
   url: string,
   api = "analyze",
   fmt = "markdown",
@@ -39,6 +40,6 @@ export async function extract(
     params: buildParams(client, normalized, fmt),
   });
   const body = await readBodyText(response);
-  client.raiseForStatus(response, body);
+  raiseForStatus(response, body);
   return parseResponse(JSON.parse(body) as JsonObject);
 }

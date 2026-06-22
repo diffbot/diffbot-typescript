@@ -1,4 +1,4 @@
-import type { FetchFn } from "../../src/types.js";
+import type { FetchFn } from "../../src/http.js";
 
 export interface MockRequest {
   url: string;

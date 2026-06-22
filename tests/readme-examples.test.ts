@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { CrawlEventType, Diffbot, DiffbotAsync } from "../src/index.js";
+import {
+  CrawlEventType,
+  DiffbotClient,
+  ask,
+  crawl,
+  dql,
+  entities,
+  extract,
+  webSearch,
+} from "../src/index.js";
 import { createMockFetch, jsonResponse, sseResponse } from "./helpers/mock-fetch.js";
 
 const SSE_PARIS = 'data: {"choices": [{"delta": {"content": "Paris"}}]}\n';
 
 describe("README examples", () => {
   it("extract", async () => {
-    const db = new Diffbot({
+    const db = new DiffbotClient({
       token: "test-token",
       fetch: createMockFetch((req) => {
         expect(req.params.get("token")).toBe("test-token");
@@ -14,29 +23,29 @@ describe("README examples", () => {
         return jsonResponse({ objects: [{ title: "Hacker News" }] });
       }),
     });
-    const data = await db.extract("https://news.ycombinator.com");
+    const data = await extract(db, "https://news.ycombinator.com");
     expect(data).toHaveProperty("objects");
   });
 
   it("ask", async () => {
-    const db = new Diffbot({
+    const db = new DiffbotClient({
       token: "test-token",
       fetch: createMockFetch(() => sseResponse(SSE_PARIS)),
     });
     const chunks: string[] = [];
-    for await (const chunk of db.ask([{ role: "user", content: "What's the capital of France?" }])) {
+    for await (const chunk of ask(db, [{ role: "user", content: "What's the capital of France?" }])) {
       chunks.push(chunk);
     }
     expect(chunks.join("")).toContain("Paris");
   });
 
   it("crawl", async () => {
-    const db = new Diffbot({
+    const db = new DiffbotClient({
       token: "test-token",
       fetch: createMockFetch(() => jsonResponse({ jobs: [{ name: "test-job" }] })),
     });
     const events = [];
-    for await (const event of db.crawl("https://example.com", { hops: 1, jobName: "test-job" })) {
+    for await (const event of crawl(db, "https://example.com", { hops: 1, jobName: "test-job" })) {
       events.push(event);
     }
     expect(events).toHaveLength(1);
@@ -44,19 +53,19 @@ describe("README examples", () => {
   });
 
   it("dql", async () => {
-    const db = new Diffbot({
+    const db = new DiffbotClient({
       token: "test-token",
       fetch: createMockFetch((req) => {
         expect(req.params.get("query")).toContain("Diffbot");
         return jsonResponse({ data: [{ entity: { name: "Diffbot" } }] });
       }),
     });
-    const results = await db.dql('type:Organization name:"Diffbot"');
+    const results = await dql(db, 'type:Organization name:"Diffbot"');
     expect(results).toHaveProperty("data");
   });
 
   it("web search", async () => {
-    const db = new Diffbot({
+    const db = new DiffbotClient({
       token: "test-token",
       fetch: createMockFetch((req) => {
         expect(req.headers.get("Authorization")).toBe("Bearer test-token");
@@ -68,14 +77,14 @@ describe("README examples", () => {
         });
       }),
     });
-    const results = await db.webSearch("diffbot knowledge graph");
+    const results = await webSearch(db, "diffbot knowledge graph");
     const searchResults = results.search_results as Array<Record<string, unknown>>;
     expect(searchResults).toHaveLength(1);
     expect(searchResults[0]!.title).toBe("Diffbot");
   });
 
   it("entities", async () => {
-    const db = new Diffbot({
+    const db = new DiffbotClient({
       token: "test-token",
       fetch: createMockFetch((req) => {
         expect(req.method).toBe("POST");
@@ -92,18 +101,18 @@ describe("README examples", () => {
         ]);
       }),
     });
-    const result = await db.entities("Apple CEO Tim Cook announced record quarterly earnings.");
-    const entities = result.entities as Array<Record<string, unknown>>;
-    expect(entities).toHaveLength(2);
+    const result = await entities(db, "Apple CEO Tim Cook announced record quarterly earnings.");
+    const entityList = result.entities as Array<Record<string, unknown>>;
+    expect(entityList).toHaveLength(2);
     expect(result.sentiment).toBe(0.3);
   });
 
-  it("async extract with DiffbotAsync", async () => {
-    await using db = new DiffbotAsync({
+  it("extract with await using", async () => {
+    await using db = new DiffbotClient({
       token: "test-token",
       fetch: createMockFetch(() => jsonResponse({ objects: [{ title: "Hacker News" }] })),
     });
-    const data = await db.extract("https://news.ycombinator.com");
+    const data = await extract(db, "https://news.ycombinator.com");
     expect(data).toHaveProperty("objects");
   });
 });

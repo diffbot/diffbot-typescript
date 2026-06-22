@@ -1,4 +1,4 @@
-import type { JsonObject } from "../../src/types.js";
+import type { JsonObject } from "../../src/json.js";
 
 export const FIXTURE_ONTOLOGY: JsonObject = {
   types: {

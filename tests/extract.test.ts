@@ -1,15 +1,16 @@
 import { describe, expect, it, afterEach } from "vitest";
 import {
-  Diffbot,
+  DiffbotClient,
   ExtractionError,
   ValidationError,
+  extract,
   resolveToken,
 } from "../src/index.js";
 import { createMockFetch, jsonResponse } from "./helpers/mock-fetch.js";
 import { authConfig } from "../src/auth.js";
 
 function makeClient(handler: Parameters<typeof createMockFetch>[0]) {
-  return new Diffbot({ token: "test-token", fetch: createMockFetch(handler) });
+  return new DiffbotClient({ token: "test-token", fetch: createMockFetch(handler) });
 }
 
 describe("extract", () => {
@@ -19,7 +20,7 @@ describe("extract", () => {
       expect(req.params.get("url")).toBe("https://example.com");
       return jsonResponse({ objects: [{ title: "Example", pageUrl: "https://example.com" }] });
     });
-    const result = await db.extract("https://example.com");
+    const result = await extract(db, "https://example.com");
     expect(result).toEqual({ objects: [{ title: "Example", pageUrl: "https://example.com" }] });
   });
 
@@ -29,12 +30,12 @@ describe("extract", () => {
       captured = req.params.get("url") ?? "";
       return jsonResponse({ objects: [] });
     });
-    await db.extract("example.com");
+    await extract(db, "example.com");
     expect(captured).toBe("https://example.com");
   });
 
   it("requires token", () => {
-    expect(() => new Diffbot({ token: "" })).toThrow(ValidationError);
+    expect(() => new DiffbotClient({ token: "" })).toThrow(ValidationError);
   });
 
   it("sets user-agent header", async () => {
@@ -43,7 +44,7 @@ describe("extract", () => {
       ua = req.headers.get("user-agent") ?? "";
       return jsonResponse({});
     });
-    await db.extract("example.com");
+    await extract(db, "example.com");
     expect(ua.startsWith("diffbot-typescript/")).toBe(true);
   });
 
@@ -51,7 +52,7 @@ describe("extract", () => {
     const db = makeClient(() =>
       jsonResponse({ code: 401, message: "Unauthorized. Incorrect token.", requestId: "123456789" }, 401),
     );
-    await expect(db.extract("example.com")).rejects.toMatchObject({
+    await expect(extract(db, "example.com")).rejects.toMatchObject({
       name: "AuthError",
       statusCode: 401,
       apiMessage: "Unauthorized. Incorrect token.",
@@ -61,7 +62,7 @@ describe("extract", () => {
 
   it("raises ExtractionError on 200 with errorCode", async () => {
     const db = makeClient(() => jsonResponse({ errorCode: 500, error: "Could not download page (403)" }));
-    await expect(db.extract("example.com")).rejects.toMatchObject({
+    await expect(extract(db, "example.com")).rejects.toMatchObject({
       name: "ExtractionError",
       errorCode: 500,
     });
@@ -69,8 +70,21 @@ describe("extract", () => {
 
   it("closes client", async () => {
     const db = makeClient(() => jsonResponse({}));
-    await db.extract("example.com");
+    await extract(db, "example.com");
     await db.close();
+    expect(db.http.isClosed).toBe(true);
+  });
+
+  it("disposes client with await using", async () => {
+    let db: DiffbotClient;
+    {
+      await using scoped = new DiffbotClient({
+        token: "test-token",
+        fetch: createMockFetch(() => jsonResponse({})),
+      });
+      db = scoped;
+      await extract(scoped, "example.com");
+    }
     expect(db.http.isClosed).toBe(true);
   });
 });

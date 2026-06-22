@@ -1,5 +1,10 @@
-import { readBodyText } from "./http.js";
-import type { ChatMessage, DiffbotClientLike } from "./types.js";
+import type { DiffbotClient } from "./client.js";
+import { readBodyText, raiseForStatus } from "./http.js";
+
+export interface ChatMessage {
+  role: string;
+  content: string;
+}
 
 function parseChunk(line: string): string | undefined {
   try {
@@ -38,7 +43,7 @@ async function* linesFromStream(body: ReadableStream<Uint8Array>): AsyncGenerato
 }
 
 export async function* ask(
-  client: DiffbotClientLike,
+  client: DiffbotClient,
   messages: ChatMessage[],
 ): AsyncGenerator<string> {
   const headers = { Authorization: `Bearer ${client.token}` };
@@ -47,7 +52,7 @@ export async function* ask(
   const response = await client.http.post(client.llmUrl, { headers, json: payload });
   if (!response.ok) {
     const body = await readBodyText(response);
-    client.raiseForStatus(response, body);
+    raiseForStatus(response, body);
     return;
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Diffbot, Ontology } from "../src/index.js";
+import { DiffbotClient, Ontology, dqlFetchOntology } from "../src/index.js";
 import { FIXTURE_ONTOLOGY } from "./fixtures/ontology.js";
 import { createMockFetch, jsonResponse } from "./helpers/mock-fetch.js";
 
@@ -36,14 +36,14 @@ describe("Ontology", () => {
   });
 
   it("fetches ontology via client", async () => {
-    const db = new Diffbot({
+    const db = new DiffbotClient({
       token: "test-token",
       fetch: createMockFetch((req) => {
         expect(req.url.endsWith("/ontology") || req.url.includes("/ontology")).toBe(true);
         return jsonResponse(FIXTURE_ONTOLOGY);
       }),
     });
-    const result = await db.dqlFetchOntology();
+    const result = await dqlFetchOntology(db);
     expect(result).toBeInstanceOf(Ontology);
     expect(result.types()).toEqual(["Organization", "Person"]);
   });

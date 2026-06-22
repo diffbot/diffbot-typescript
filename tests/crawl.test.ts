@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { AuthError, CrawlEventType, Diffbot } from "../src/index.js";
+import { AuthError, CrawlEventType, DiffbotClient, crawl } from "../src/index.js";
 import { createMockFetch, jsonResponse, type MockHandler } from "./helpers/mock-fetch.js";
 
-function makeClient(handler: MockHandler): Diffbot {
-  return new Diffbot({ token: "test-token", fetch: createMockFetch(handler) });
+function makeClient(handler: MockHandler): DiffbotClient {
+  return new DiffbotClient({ token: "test-token", fetch: createMockFetch(handler) });
 }
 
 describe("crawl", () => {
@@ -14,7 +14,7 @@ describe("crawl", () => {
         jobs: [{ name: "test-job" }],
       }),
     );
-    const iterator = db.crawl("https://example.com", { jobName: "test-job" });
+    const iterator = crawl(db, "https://example.com", { jobName: "test-job" });
     const { value: event } = await iterator.next();
     expect(event!.eventType).toBe(CrawlEventType.JobCreated);
     expect(event!.details.job_name).toBe("test-job");
@@ -26,7 +26,7 @@ describe("crawl", () => {
       params = req.params;
       return jsonResponse({ jobs: [{ name: "test-job" }] });
     });
-    await db.crawl("https://example.com", { jobName: "test-job" }).next();
+    await crawl(db, "https://example.com", { jobName: "test-job" }).next();
     expect(params!.get("token")).toBe("test-token");
     expect(params!.get("seeds")).toBe("https://example.com");
   });
@@ -37,7 +37,7 @@ describe("crawl", () => {
       seeds = req.params.get("seeds") ?? "";
       return jsonResponse({ jobs: [{ name: "test-job" }] });
     });
-    await db.crawl("example.com", { jobName: "test-job" }).next();
+    await crawl(db, "example.com", { jobName: "test-job" }).next();
     expect(seeds).toBe("https://example.com");
   });
 
@@ -54,12 +54,12 @@ describe("crawl", () => {
         401,
       ),
     );
-    await expect(db.crawl("https://example.com").next()).rejects.toMatchObject({
+    await expect(crawl(db, "https://example.com").next()).rejects.toMatchObject({
       name: "AuthError",
       statusCode: 401,
       apiMessage: "Unauthorized",
       requestId: "123456789",
     });
-    await expect(db.crawl("https://example.com").next()).rejects.toBeInstanceOf(AuthError);
+    await expect(crawl(db, "https://example.com").next()).rejects.toBeInstanceOf(AuthError);
   });
 });

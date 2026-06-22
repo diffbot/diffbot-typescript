@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import type { JsonObject } from "./types.js";
+import type { JsonObject } from "./json.js";
 
 type FieldMeta = JsonObject;
 type FieldEntry = [string, FieldMeta];

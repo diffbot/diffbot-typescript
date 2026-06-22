@@ -8,38 +8,20 @@ import {
   WEB_SEARCH_BASE,
 } from "./constants.js";
 import { ValidationError } from "./errors.js";
-import { HttpClient, raiseForStatus } from "./http.js";
-import { extract } from "./extract.js";
-import { ask } from "./ask.js";
-import {
-  crawl,
-  crawlDeleteJob,
-  crawlGetJob,
-  crawlListJobs,
-  type CrawlEvent,
-  CrawlEventType,
-} from "./crawl.js";
-import {
-  dql,
-  dqlFetchOntology,
-  dqlParallel,
-  dqlRefreshOntology,
-} from "./kg.js";
-import { entities } from "./nlp.js";
-import { Ontology } from "./ontology.js";
-import { webSearch } from "./web-search.js";
-import type {
-  ChatMessage,
-  CrawlOptions,
-  DiffbotClientOptions,
-  DqlOptions,
-  FetchFn,
-  JsonObject,
-} from "./types.js";
+import { HttpClient, type FetchFn } from "./http.js";
 
-export { CrawlEventType, type CrawlEvent };
+export interface DiffbotClientOptions {
+  token: string;
+  timeout?: number;
+  analyzeUrl?: string;
+  llmUrl?: string;
+  crawlerUrl?: string;
+  webSearchUrl?: string;
+  nlpUrl?: string;
+  fetch?: FetchFn;
+}
 
-class DiffbotBase {
+export class DiffbotClient {
   readonly token: string;
   readonly analyzeUrl: string;
   readonly llmUrl: string;
@@ -65,10 +47,6 @@ class DiffbotBase {
     );
   }
 
-  raiseForStatus(response: Response, bodyText?: string): void {
-    raiseForStatus(response, bodyText);
-  }
-
   async close(): Promise<void> {
     await this.http.close();
   }
@@ -76,64 +54,4 @@ class DiffbotBase {
   async [Symbol.asyncDispose](): Promise<void> {
     await this.close();
   }
-
-  async extract(url: string, api = "analyze", fmt = "markdown"): Promise<JsonObject> {
-    return extract(this, url, api, fmt);
-  }
-
-  ask(messages: ChatMessage[]): AsyncGenerator<string> {
-    return ask(this, messages);
-  }
-
-  crawl(site: string, options?: CrawlOptions): AsyncGenerator<CrawlEvent> {
-    return crawl(this, site, options);
-  }
-
-  async crawlListJobs(): Promise<JsonObject[]> {
-    return crawlListJobs(this);
-  }
-
-  async crawlGetJob(jobName: string): Promise<JsonObject> {
-    return crawlGetJob(this, jobName);
-  }
-
-  async crawlDeleteJob(jobName: string): Promise<void> {
-    return crawlDeleteJob(this, jobName);
-  }
-
-  async dql(query: string, options: DqlOptions = {}): Promise<JsonObject | Uint8Array> {
-    return dql(this, query, options);
-  }
-
-  async dqlParallel(
-    queries: Array<DqlOptions & { query: string }>,
-    options: { workers?: number } = {},
-  ): Promise<Array<JsonObject | Uint8Array>> {
-    return dqlParallel(this, queries, options.workers ?? 8);
-  }
-
-  async dqlRefreshOntology(dest: string): Promise<void> {
-    return dqlRefreshOntology(this, dest);
-  }
-
-  async dqlFetchOntology(): Promise<Ontology> {
-    return dqlFetchOntology(this);
-  }
-
-  async webSearch(
-    text: string,
-    options: { numResults?: number; maxTokens?: number } = {},
-  ): Promise<JsonObject> {
-    return webSearch(this, text, options);
-  }
-
-  async entities(text: string, options: { lang?: string } = {}): Promise<JsonObject> {
-    return entities(this, text, options.lang ?? "auto");
-  }
 }
-
-/** Async client for Diffbot APIs. */
-export class Diffbot extends DiffbotBase {}
-
-/** Alias for API parity with the Python SDK. */
-export class DiffbotAsync extends DiffbotBase {}

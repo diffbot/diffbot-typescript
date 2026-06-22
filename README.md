@@ -12,15 +12,17 @@ Requires Node.js 18+ (native `fetch`).
 
 ## Usage
 
-In TypeScript, all client methods are async. Use `await` or `for await` where the Python SDK used sync iteration.
+In TypeScript, all API functions are async. Use `await` or `for await` where the Python SDK used sync iteration.
+
+Create a client once, then pass it to the API functions you need. Import only the functions you use so bundlers can tree-shake unused code.
 
 ### Authentication
 
 ```typescript
-import { Diffbot, resolveToken } from "diffbot-typescript";
+import { DiffbotClient, extract, resolveToken } from "diffbot-typescript";
 
-const db = new Diffbot({ token: resolveToken() });
-const data = await db.extract("https://www.example.com");
+const db = new DiffbotClient({ token: resolveToken() });
+const data = await extract(db, "https://www.example.com");
 await db.close();
 ```
 
@@ -33,16 +35,18 @@ Token resolution order:
 ### Extract structured content
 
 ```typescript
-import { Diffbot } from "diffbot-typescript";
+import { DiffbotClient, extract } from "diffbot-typescript";
 
-const db = new Diffbot({ token: "YOUR_TOKEN" });
-const data = await db.extract("https://www.example.com");
+const db = new DiffbotClient({ token: "YOUR_TOKEN" });
+const data = await extract(db, "https://www.example.com");
 ```
 
 ### Ask Diffbot LLM
 
 ```typescript
-for await (const chunk of db.ask([{ role: "user", content: "What's the capital of France?" }])) {
+import { ask } from "diffbot-typescript";
+
+for await (const chunk of ask(db, [{ role: "user", content: "What's the capital of France?" }])) {
   process.stdout.write(chunk);
 }
 ```
@@ -50,7 +54,9 @@ for await (const chunk of db.ask([{ role: "user", content: "What's the capital o
 ### Crawl a site
 
 ```typescript
-for await (const event of db.crawl("https://www.example.com", { hops: 1 })) {
+import { crawl } from "diffbot-typescript";
+
+for await (const event of crawl(db, "https://www.example.com", { hops: 1 })) {
   console.log(event);
 }
 ```
@@ -58,13 +64,17 @@ for await (const event of db.crawl("https://www.example.com", { hops: 1 })) {
 ### Query the Knowledge Graph
 
 ```typescript
-const results = await db.dql('type:Organization name:"Diffbot"');
+import { dql } from "diffbot-typescript";
+
+const results = await dql(db, 'type:Organization name:"Diffbot"');
 ```
 
 ### Web Search
 
 ```typescript
-const results = await db.webSearch("diffbot knowledge graph");
+import { webSearch } from "diffbot-typescript";
+
+const results = await webSearch(db, "diffbot knowledge graph");
 for (const r of results.search_results as Array<Record<string, unknown>>) {
   console.log(r.score, r.title, r.pageUrl);
 }
@@ -73,16 +83,20 @@ for (const r of results.search_results as Array<Record<string, unknown>>) {
 ### Entities (NLP)
 
 ```typescript
-const result = await db.entities("Apple CEO Tim Cook announced record quarterly earnings.");
+import { entities } from "diffbot-typescript";
+
+const result = await entities(db, "Apple CEO Tim Cook announced record quarterly earnings.");
 ```
 
-### Async client alias
+### Automatic cleanup with `await using`
 
-`DiffbotAsync` is an alias for `Diffbot` (API parity with the Python SDK):
+`DiffbotClient` supports explicit resource management for automatic cleanup:
 
 ```typescript
-await using db = new DiffbotAsync({ token: "YOUR_TOKEN" });
-const data = await db.extract("https://www.example.com");
+import { DiffbotClient, extract } from "diffbot-typescript";
+
+await using db = new DiffbotClient({ token: "YOUR_TOKEN" });
+const data = await extract(db, "https://www.example.com");
 ```
 
 ## Python ↔ TypeScript API mapping

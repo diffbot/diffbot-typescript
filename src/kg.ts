@@ -1,12 +1,23 @@
+import type { DiffbotClient } from "./client.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { KG_DQL_ENDPOINT, KG_ONTOLOGY_ENDPOINT } from "./constants.js";
-import { readBodyText } from "./http.js";
+import { readBodyText, raiseForStatus } from "./http.js";
+import type { JsonObject } from "./json.js";
 import { Ontology } from "./ontology.js";
-import type { DiffbotClientLike, DqlOptions, JsonObject } from "./types.js";
+
+export interface DqlOptions {
+  size?: number;
+  from?: number;
+  format?: string;
+  filter?: string;
+  exportspec?: string;
+  extra?: Record<string, string>;
+  raw?: boolean;
+}
 
 function buildDqlParams(
-  client: DiffbotClientLike,
+  client: DiffbotClient,
   query: string,
   options: DqlOptions,
 ): Record<string, string | number> {
@@ -24,14 +35,14 @@ function buildDqlParams(
 }
 
 export async function dql(
-  client: DiffbotClientLike,
+  client: DiffbotClient,
   query: string,
   options: DqlOptions = {},
 ): Promise<JsonObject | Uint8Array> {
   const params = buildDqlParams(client, query, options);
   const response = await client.http.get(KG_DQL_ENDPOINT, { params });
   const body = await readBodyText(response);
-  client.raiseForStatus(response, body);
+  raiseForStatus(response, body);
   if (options.raw) {
     return new TextEncoder().encode(body);
   }
@@ -39,7 +50,7 @@ export async function dql(
 }
 
 export async function dqlParallel(
-  client: DiffbotClientLike,
+  client: DiffbotClient,
   queries: Array<DqlOptions & { query: string }>,
   workers = 8,
 ): Promise<Array<JsonObject | Uint8Array>> {
@@ -62,17 +73,17 @@ export async function dqlParallel(
   return results;
 }
 
-export async function dqlRefreshOntology(client: DiffbotClientLike, dest: string): Promise<void> {
+export async function dqlRefreshOntology(client: DiffbotClient, dest: string): Promise<void> {
   const response = await client.http.get(KG_ONTOLOGY_ENDPOINT);
   const body = await readBodyText(response);
-  client.raiseForStatus(response, body);
+  raiseForStatus(response, body);
   await mkdir(dirname(dest), { recursive: true });
   await writeFile(dest, body);
 }
 
-export async function dqlFetchOntology(client: DiffbotClientLike): Promise<Ontology> {
+export async function dqlFetchOntology(client: DiffbotClient): Promise<Ontology> {
   const response = await client.http.get(KG_ONTOLOGY_ENDPOINT);
   const body = await readBodyText(response);
-  client.raiseForStatus(response, body);
+  raiseForStatus(response, body);
   return Ontology.fromJson(body);
 }

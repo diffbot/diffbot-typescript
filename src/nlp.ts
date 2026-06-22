@@ -1,10 +1,11 @@
-import { readBodyText } from "./http.js";
-import type { DiffbotClientLike, JsonObject } from "./types.js";
+import type { DiffbotClient } from "./client.js";
+import { readBodyText, raiseForStatus } from "./http.js";
+import type { JsonObject } from "./json.js";
 
 const NLP_FIELDS = "entities,sentiment";
 
 export async function entities(
-  client: DiffbotClientLike,
+  client: DiffbotClient,
   text: string,
   lang = "auto",
 ): Promise<JsonObject> {
@@ -12,7 +13,7 @@ export async function entities(
   const payload = [{ lang, format: "plain text", content: text }];
   const response = await client.http.post(client.nlpUrl, { params, json: payload });
   const body = await readBodyText(response);
-  client.raiseForStatus(response, body);
+  raiseForStatus(response, body);
   const data = JSON.parse(body) as JsonObject | JsonObject[];
   return Array.isArray(data) ? (data[0] ?? {}) : data;
 }

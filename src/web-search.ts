@@ -1,8 +1,9 @@
-import { readBodyText } from "./http.js";
-import type { DiffbotClientLike, JsonObject } from "./types.js";
+import type { DiffbotClient } from "./client.js";
+import { readBodyText, raiseForStatus } from "./http.js";
+import type { JsonObject } from "./json.js";
 
 export async function webSearch(
-  client: DiffbotClientLike,
+  client: DiffbotClient,
   text: string,
   options: { numResults?: number; maxTokens?: number } = {},
 ): Promise<JsonObject> {
@@ -13,6 +14,6 @@ export async function webSearch(
 
   const response = await client.http.get(client.webSearchUrl, { headers, params });
   const body = await readBodyText(response);
-  client.raiseForStatus(response, body);
+  raiseForStatus(response, body);
   return JSON.parse(body) as JsonObject;
 }

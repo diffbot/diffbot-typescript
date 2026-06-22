@@ -1,6 +1,7 @@
+import type { DiffbotClient } from "./client.js";
 import { APIError } from "./errors.js";
-import { readBodyText } from "./http.js";
-import type { CrawlOptions, DiffbotClientLike, JsonObject } from "./types.js";
+import { readBodyText, raiseForStatus } from "./http.js";
+import type { JsonObject } from "./json.js";
 
 export enum CrawlEventType {
   JobCreated = "job_created",
@@ -13,8 +14,25 @@ export interface CrawlEvent {
   details: JsonObject;
 }
 
+export interface CrawlOptions {
+  hops?: number;
+  jobName?: string;
+  maxToCrawl?: number;
+  maxToProcess?: number;
+  restrictDomain?: boolean;
+  apiUrl?: string;
+  crawlDelay?: number;
+  urlCrawlPattern?: string;
+  urlProcessPattern?: string;
+  obeyRobots?: boolean;
+  useProxies?: boolean;
+  customHeaders?: string;
+  watch?: boolean;
+  pollInterval?: number;
+}
+
 function buildCrawlParams(
-  client: DiffbotClientLike,
+  client: DiffbotClient,
   jobName: string,
   site: string,
   options: Required<Pick<CrawlOptions, "maxToCrawl" | "maxToProcess" | "hops" | "restrictDomain" | "apiUrl" | "crawlDelay" | "obeyRobots" | "useProxies">> &
@@ -72,7 +90,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 export async function* crawl(
-  client: DiffbotClientLike,
+  client: DiffbotClient,
   site: string,
   options: CrawlOptions = {},
 ): AsyncGenerator<CrawlEvent> {
@@ -95,7 +113,7 @@ export async function* crawl(
 
   const response = await client.http.get(client.crawlerUrl, { params });
   const body = await readBodyText(response);
-  client.raiseForStatus(response, body);
+  raiseForStatus(response, body);
 
   yield {
     eventType: CrawlEventType.JobCreated,
@@ -115,7 +133,7 @@ export async function* crawl(
       params: { token: client.token, name: jobName },
     });
     const statusBody = await readBodyText(statusResponse);
-    client.raiseForStatus(statusResponse, statusBody);
+    raiseForStatus(statusResponse, statusBody);
     const jobs = (JSON.parse(statusBody) as JsonObject).jobs as JsonObject[] | undefined;
     if (!jobs?.length) break;
 
@@ -127,7 +145,7 @@ export async function* crawl(
       redirect: "follow",
     });
     const urlsBody = await readBodyText(urlsResponse);
-    client.raiseForStatus(urlsResponse, urlsBody);
+    raiseForStatus(urlsResponse, urlsBody);
     if (urlsBody) {
       for (const event of parseUrlCsv(urlsBody, seenUrls)) {
         yield event;
@@ -146,29 +164,29 @@ export async function* crawl(
   }
 }
 
-export async function crawlListJobs(client: DiffbotClientLike): Promise<JsonObject[]> {
+export async function crawlListJobs(client: DiffbotClient): Promise<JsonObject[]> {
   const response = await client.http.get(client.crawlerUrl, {
     params: { token: client.token },
   });
   const body = await readBodyText(response);
-  client.raiseForStatus(response, body);
+  raiseForStatus(response, body);
   return ((JSON.parse(body) as JsonObject).jobs as JsonObject[] | undefined) ?? [];
 }
 
-export async function crawlGetJob(client: DiffbotClientLike, jobName: string): Promise<JsonObject> {
+export async function crawlGetJob(client: DiffbotClient, jobName: string): Promise<JsonObject> {
   const response = await client.http.get(client.crawlerUrl, {
     params: { token: client.token, name: jobName },
   });
   const body = await readBodyText(response);
-  client.raiseForStatus(response, body);
+  raiseForStatus(response, body);
   const jobs = (JSON.parse(body) as JsonObject).jobs as JsonObject[] | undefined;
   return jobs?.[0] ?? {};
 }
 
-export async function crawlDeleteJob(client: DiffbotClientLike, jobName: string): Promise<void> {
+export async function crawlDeleteJob(client: DiffbotClient, jobName: string): Promise<void> {
   const response = await client.http.get(client.crawlerUrl, {
     params: { token: client.token, name: jobName, delete: 1 },
   });
   const body = await readBodyText(response);
-  client.raiseForStatus(response, body);
+  raiseForStatus(response, body);
 }

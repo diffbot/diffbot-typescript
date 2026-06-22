@@ -1,5 +1,13 @@
 import { APIError, AuthError, RateLimitError } from "./errors.js";
-import type { FetchFn, HttpRequestOptions } from "./types.js";
+
+export type FetchFn = typeof fetch;
+
+export interface HttpRequestOptions {
+  params?: Record<string, string | number | boolean | undefined>;
+  headers?: Record<string, string>;
+  json?: unknown;
+  redirect?: "follow" | "error" | "manual";
+}
 
 export class HttpClient {
   private closed = false;
