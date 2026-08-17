@@ -1,0 +1,132 @@
+name: Release
+
+# Builds the package and publishes it to npm. Triggered by pushing a version
+# tag (e.g. v0.2.1); also runnable manually for dry runs (build-only — the
+# publish job is gated on an actual tag push).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# Re-pushing a tag (or re-dispatching) cancels an in-flight run for the same
+# ref so a stuck build can't pile up behind a newer attempt.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Fail fast if the tag doesn't match package.json's version, so the
+      # GitHub Release name can never disagree with the version published to npm.
+      - name: Check tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          pkg=$(node -p "require('./package.json').version")
+          tag=${GITHUB_REF_NAME#v}
+          if [ "$pkg" != "$tag" ]; then
+            echo "::error::Tag v${tag} does not match package.json version ${pkg}. Bump package.json and re-tag."
+            exit 1
+          fi
+          echo "Tag and package version agree: ${pkg}"
+
+      # Runs the postbuild node-builtin guard (scripts/assert-no-node-builtins.mjs)
+      # automatically, and builds both the main entry and the ./node subpath.
+      - name: Build
+        run: pnpm build
+
+      # Bundle everything `pnpm publish` needs (package.json, README, LICENSE,
+      # dist/ — which includes dist/node/) so the publish job below can run
+      # without checking out the repo.
+      - name: Assemble publishable package
+        run: |
+          mkdir -p publish
+          cp -r dist publish/dist
+          cp package.json README.md LICENSE publish/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: package
+          path: publish/
+          if-no-files-found: error
+
+  release:
+    name: Publish to npm and GitHub
+    needs: build
+    runs-on: ubuntu-latest
+    # Only publish for real tag pushes; workflow_dispatch runs just build.
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+      # Required for npm provenance attestation.
+      id-token: write
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: package
+          path: package
+
+      - name: List artifact contents
+        run: ls -lR package
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish to npm
+        working-directory: package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish --access public --no-git-checks --provenance
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # This job doesn't check out the repo, so gh can't infer it from a local
+        # git remote — pass --repo explicitly on every gh call. GitHub release
+        # assets are identified by filename within a release, and dist/node/
+        # (the ./node subpath build) has the exact same filenames as dist/
+        # (index.js, index.cjs, ...) — uploading both by basename would
+        # collide, so flatten into a staging dir with the node/ half prefixed.
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          repo="${GITHUB_REPOSITORY}"
+
+          mkdir -p release-assets
+          find package/dist -maxdepth 1 -type f -exec cp {} release-assets/ \;
+          for f in package/dist/node/*; do
+            cp "$f" "release-assets/node-$(basename "$f")"
+          done
+          assets=(release-assets/*)
+
+          if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+            echo "Release $tag exists; uploading assets (clobbering)."
+            gh release upload "$tag" "${assets[@]}" --repo "$repo" --clobber
+          else
+            echo "Creating release $tag."
+            gh release create "$tag" \
+              --repo "$repo" \
+              --title "$tag" \
+              --generate-notes \
+              "${assets[@]}"
+          fi
