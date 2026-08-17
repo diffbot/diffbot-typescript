@@ -1,5 +1,5 @@
 export { DiffbotClient, type DiffbotClientOptions } from "./client.js";
-export { resolveToken } from "./auth.js";
+export { resolveTokenFromEnv, type TokenSource } from "./auth.js";
 export { extract } from "./extract.js";
 export { ask, type ChatMessage } from "./ask.js";
 export {
@@ -14,12 +14,19 @@ export {
 export {
   dql,
   dqlFetchOntology,
+  dqlFetchOntologyText,
   dqlParallel,
-  dqlRefreshOntology,
   type DqlOptions,
 } from "./kg.js";
 export { entities } from "./nlp.js";
 export { Ontology } from "./ontology.js";
+export {
+  OntologyStore,
+  KVOntologyStore,
+  type OntologyStoreOptions,
+  type KVOntologyStoreOptions,
+  type KVLike,
+} from "./ontology-store.js";
 export { webSearch } from "./web-search.js";
 export {
   DiffbotError,

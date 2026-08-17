@@ -1,0 +1,22 @@
+{
+  "name": "diffbot-typescript-worker-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "wrangler deploy --dry-run --outdir .wrangler-build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@diffbot/typescript": "link:../.."
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.8.0",
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.1",
+    "wrangler": "^4.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "sharp", "workerd"]
+  }
+}

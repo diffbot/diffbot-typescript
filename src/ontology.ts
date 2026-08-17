@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import type { JsonObject } from "./json.js";
 
 type FieldMeta = JsonObject;
@@ -14,11 +13,6 @@ export class Ontology {
   static fromJson(raw: string | Uint8Array): Ontology {
     const text = typeof raw === "string" ? raw : new TextDecoder().decode(raw);
     return new Ontology(JSON.parse(text) as JsonObject);
-  }
-
-  static async fromPath(path: string): Promise<Ontology> {
-    const text = await readFile(path, "utf8");
-    return Ontology.fromJson(text);
   }
 
   types(): string[] {

@@ -3,6 +3,8 @@ import {
   DEFAULT_TIMEOUT,
   DIFFBOT_LLM_BASE,
   EXTRACT_BASE,
+  KG_DQL_ENDPOINT,
+  KG_ONTOLOGY_ENDPOINT,
   NLP_BASE,
   VERSION,
   WEB_SEARCH_BASE,
@@ -18,6 +20,8 @@ export interface DiffbotClientOptions {
   crawlerUrl?: string;
   webSearchUrl?: string;
   nlpUrl?: string;
+  dqlUrl?: string;
+  ontologyUrl?: string;
   fetch?: FetchFn;
 }
 
@@ -28,6 +32,8 @@ export class DiffbotClient {
   readonly crawlerUrl: string;
   readonly webSearchUrl: string;
   readonly nlpUrl: string;
+  readonly dqlUrl: string;
+  readonly ontologyUrl: string;
   readonly http: HttpClient;
 
   constructor(options: DiffbotClientOptions) {
@@ -40,6 +46,8 @@ export class DiffbotClient {
     this.crawlerUrl = options.crawlerUrl ?? CRAWL_BASE;
     this.webSearchUrl = options.webSearchUrl ?? WEB_SEARCH_BASE;
     this.nlpUrl = options.nlpUrl ?? NLP_BASE;
+    this.dqlUrl = options.dqlUrl ?? KG_DQL_ENDPOINT;
+    this.ontologyUrl = options.ontologyUrl ?? KG_ONTOLOGY_ENDPOINT;
     this.http = new HttpClient(
       options.fetch ?? fetch,
       options.timeout ?? DEFAULT_TIMEOUT,

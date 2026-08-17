@@ -1,7 +1,4 @@
 import type { DiffbotClient } from "./client.js";
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
-import { KG_DQL_ENDPOINT, KG_ONTOLOGY_ENDPOINT } from "./constants.js";
 import { readBodyText, raiseForStatus } from "./http.js";
 import type { JsonObject } from "./json.js";
 import { Ontology } from "./ontology.js";
@@ -40,7 +37,7 @@ export async function dql(
   options: DqlOptions = {},
 ): Promise<JsonObject | Uint8Array> {
   const params = buildDqlParams(client, query, options);
-  const response = await client.http.get(KG_DQL_ENDPOINT, { params });
+  const response = await client.http.get(client.dqlUrl, { params });
   const body = await readBodyText(response);
   raiseForStatus(response, body);
   if (options.raw) {
@@ -73,17 +70,14 @@ export async function dqlParallel(
   return results;
 }
 
-export async function dqlRefreshOntology(client: DiffbotClient, dest: string): Promise<void> {
-  const response = await client.http.get(KG_ONTOLOGY_ENDPOINT);
+/** Fetch the raw ontology JSON text. For a parsed, cached `Ontology`, see `OntologyStore`. */
+export async function dqlFetchOntologyText(client: DiffbotClient): Promise<string> {
+  const response = await client.http.get(client.ontologyUrl);
   const body = await readBodyText(response);
   raiseForStatus(response, body);
-  await mkdir(dirname(dest), { recursive: true });
-  await writeFile(dest, body);
+  return body;
 }
 
 export async function dqlFetchOntology(client: DiffbotClient): Promise<Ontology> {
-  const response = await client.http.get(KG_ONTOLOGY_ENDPOINT);
-  const body = await readBodyText(response);
-  raiseForStatus(response, body);
-  return Ontology.fromJson(body);
+  return Ontology.fromJson(await dqlFetchOntologyText(client));
 }

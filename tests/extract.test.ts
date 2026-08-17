@@ -1,13 +1,6 @@
-import { describe, expect, it, afterEach } from "vitest";
-import {
-  DiffbotClient,
-  ExtractionError,
-  ValidationError,
-  extract,
-  resolveToken,
-} from "../src/index.js";
+import { describe, expect, it } from "vitest";
+import { DiffbotClient, ExtractionError, ValidationError, extract } from "../src/index.js";
 import { createMockFetch, jsonResponse } from "./helpers/mock-fetch.js";
-import { authConfig } from "../src/auth.js";
 
 function makeClient(handler: Parameters<typeof createMockFetch>[0]) {
   return new DiffbotClient({ token: "test-token", fetch: createMockFetch(handler) });
@@ -86,33 +79,5 @@ describe("extract", () => {
       await extract(scoped, "example.com");
     }
     expect(db.http.isClosed).toBe(true);
-  });
-});
-
-describe("resolveToken", () => {
-  const originalEnv = process.env.DIFFBOT_API_TOKEN;
-  const originalPath = authConfig.credentialsPath;
-
-  afterEach(() => {
-    if (originalEnv === undefined) delete process.env.DIFFBOT_API_TOKEN;
-    else process.env.DIFFBOT_API_TOKEN = originalEnv;
-    authConfig.credentialsPath = originalPath;
-  });
-
-  it("prefers explicit token", () => {
-    process.env.DIFFBOT_API_TOKEN = "env-token";
-    expect(resolveToken("explicit-token")).toBe("explicit-token");
-  });
-
-  it("reads env var", () => {
-    process.env.DIFFBOT_API_TOKEN = "env-token";
-    authConfig.credentialsPath = "/tmp/missing-diffbot-credentials";
-    expect(resolveToken()).toBe("env-token");
-  });
-
-  it("returns empty when missing", () => {
-    delete process.env.DIFFBOT_API_TOKEN;
-    authConfig.credentialsPath = "/tmp/missing-diffbot-credentials";
-    expect(resolveToken()).toBe("");
   });
 });

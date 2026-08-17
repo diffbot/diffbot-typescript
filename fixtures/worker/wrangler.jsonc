@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "diffbot-typescript-worker-fixture",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-04-01",
+  // Empty on purpose: this is the assertion that @diffbot/typescript needs
+  // no Node compatibility shims at all to run in a Worker. Adding
+  // "nodejs_compat" here would silently retire that guarantee.
+  "compatibility_flags": []
+}

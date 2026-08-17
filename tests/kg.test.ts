@@ -1,8 +1,5 @@
-import { describe, expect, it, afterEach } from "vitest";
-import { readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { DiffbotClient, dql, dqlParallel, dqlRefreshOntology } from "../src/index.js";
+import { describe, expect, it } from "vitest";
+import { DiffbotClient, dql, dqlFetchOntologyText, dqlParallel } from "../src/index.js";
 import { createMockFetch, jsonResponse } from "./helpers/mock-fetch.js";
 
 function makeClient(handler: Parameters<typeof createMockFetch>[0]) {
@@ -66,6 +63,26 @@ describe("dql", () => {
       statusCode: 401,
     });
   });
+
+  it("defaults to the public DQL endpoint", async () => {
+    const db = makeClient((req) => {
+      expect(req.url).toBe("https://kg.diffbot.com/kg/v3/dql");
+      return jsonResponse({ data: [] });
+    });
+    await dql(db, "type:Organization");
+  });
+
+  it("honors a custom dqlUrl", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      dqlUrl: "http://localhost:8080/kg/v3/dql",
+      fetch: createMockFetch((req) => {
+        expect(req.url).toBe("http://localhost:8080/kg/v3/dql");
+        return jsonResponse({ data: [] });
+      }),
+    });
+    await dql(db, "type:Organization");
+  });
 });
 
 describe("dqlParallel", () => {
@@ -94,26 +111,39 @@ describe("dqlParallel", () => {
   });
 });
 
-describe("dqlRefreshOntology", () => {
-  const dest = join(tmpdir(), `diffbot-ontology-${process.pid}`, "ontology.json");
-
-  afterEach(async () => {
-    await rm(join(tmpdir(), `diffbot-ontology-${process.pid}`), { recursive: true, force: true });
-  });
-
-  it("writes the ontology body to disk, creating dirs", async () => {
+describe("dqlFetchOntologyText", () => {
+  it("returns the raw ontology body", async () => {
     const payload = { types: { Organization: {} } };
     const db = makeClient((req) => {
       expect(req.url).toContain("/ontology");
       return jsonResponse(payload);
     });
-    await dqlRefreshOntology(db, dest);
-    const written = await readFile(dest, "utf8");
-    expect(JSON.parse(written)).toEqual(payload);
+    const text = await dqlFetchOntologyText(db);
+    expect(JSON.parse(text)).toEqual(payload);
   });
 
   it("raises on error status", async () => {
     const db = makeClient(() => jsonResponse({ code: 401, message: "nope" }, 401));
-    await expect(dqlRefreshOntology(db, dest)).rejects.toMatchObject({ name: "AuthError" });
+    await expect(dqlFetchOntologyText(db)).rejects.toMatchObject({ name: "AuthError" });
+  });
+
+  it("defaults to the public ontology endpoint", async () => {
+    const db = makeClient((req) => {
+      expect(req.url).toBe("https://kg.diffbot.com/kg/ontology");
+      return jsonResponse({ types: {} });
+    });
+    await dqlFetchOntologyText(db);
+  });
+
+  it("honors a custom ontologyUrl", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      ontologyUrl: "http://localhost:8080/kg/ontology",
+      fetch: createMockFetch((req) => {
+        expect(req.url).toBe("http://localhost:8080/kg/ontology");
+        return jsonResponse({ types: {} });
+      }),
+    });
+    await dqlFetchOntologyText(db);
   });
 });

@@ -1,6 +1,6 @@
 {
-  "name": "diffbot-typescript",
-  "version": "0.1.0",
+  "name": "@diffbot/typescript",
+  "version": "0.2.0",
   "description": "TypeScript client library for Diffbot APIs",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -11,23 +11,32 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    }
+    },
+    "./node": {
+      "types": "./dist/node/index.d.ts",
+      "import": "./dist/node/index.js",
+      "require": "./dist/node/index.cjs"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "LICENSE",
     "README.md"
   ],
+  "sideEffects": false,
   "engines": {
     "node": ">=18"
   },
   "scripts": {
     "build": "tsup",
+    "prepublishOnly": "pnpm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:live": "vitest run --config vitest.live.config.ts",
     "test:coverage": "vitest run --coverage --coverage.include='src/**'",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postbuild": "node scripts/assert-no-node-builtins.mjs"
   },
   "keywords": [
     "diffbot",
@@ -39,7 +48,19 @@
     "llm",
     "api-client"
   ],
+  "author": "Diffbot",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/diffbot/diffbot-typescript.git"
+  },
+  "bugs": {
+    "url": "https://github.com/diffbot/diffbot-typescript/issues"
+  },
+  "homepage": "https://github.com/diffbot/diffbot-typescript#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "@types/node": "^22.15.21",
     "@vitest/coverage-v8": "^3.2.6",

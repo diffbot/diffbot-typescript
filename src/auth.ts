@@ -1,37 +1,39 @@
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { TOKEN_ENV_VAR } from "./constants.js";
 
-/** Mutable for tests; defaults to ~/.diffbot/credentials. */
-export const authConfig = {
-  credentialsPath: join(homedir(), ".diffbot", "credentials"),
-};
+/*
+ * `object`, not `Record<string, unknown>`: a typed Workers `Env` is normally
+ * an `interface`, and interfaces don't get TypeScript's implicit index
+ * signature, so a `Record<string, unknown>` parameter would reject exactly
+ * the argument this function exists to accept. `object` has no members, so
+ * any object type is assignable to it; the bracket access below is cast
+ * internally instead.
+ */
+export type TokenSource = object;
 
-function readCredentialsFile(path = authConfig.credentialsPath): string {
-  if (!existsSync(path)) {
-    return "";
+function envToken(env: TokenSource | undefined): string {
+  const fromEnv = (env as Record<string, unknown> | undefined)?.[TOKEN_ENV_VAR];
+  if (typeof fromEnv === "string" && fromEnv.trim()) {
+    return fromEnv.trim();
   }
-  const text = readFileSync(path, "utf8");
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith(`${TOKEN_ENV_VAR}=`)) {
-      return trimmed.slice(TOKEN_ENV_VAR.length + 1).trim();
-    }
-  }
-  return "";
+
+  /*
+   * Guarded rather than a static `process.env` read: `process` does not exist
+   * in Workers/browsers, and touching it unconditionally would reintroduce a
+   * runtime-specific dependency into an otherwise platform-neutral module.
+   */
+  const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
+  const fromProcess = proc?.env?.[TOKEN_ENV_VAR];
+  return fromProcess?.trim() ?? "";
 }
 
-/** Resolve a Diffbot API token from explicit arg, env var, or credentials file. */
-export function resolveToken(token?: string | null): string {
+/**
+ * Resolve a Diffbot API token from an explicit arg, then a Workers-style
+ * `env` object, then `process.env`. Does not touch the filesystem — for a
+ * credentials-file fallback, use `resolveToken` from `@diffbot/typescript/node`.
+ */
+export function resolveTokenFromEnv(token?: string | null, env?: TokenSource): string {
   if (token?.trim()) {
     return token.trim();
   }
-
-  const envToken = process.env[TOKEN_ENV_VAR]?.trim();
-  if (envToken) {
-    return envToken;
-  }
-
-  return readCredentialsFile();
+  return envToken(env);
 }

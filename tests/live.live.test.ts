@@ -5,7 +5,8 @@
 */
 
 import { describe, expect, it } from "vitest";
-import { DiffbotClient, ask, dql, extract, resolveToken, webSearch } from "../src/index.js";
+import { DiffbotClient, ask, dql, extract, webSearch } from "../src/index.js";
+import { resolveToken } from "../src/node/index.js";
 import type { JsonObject } from "../src/json.js";
 
 const token = resolveToken();
