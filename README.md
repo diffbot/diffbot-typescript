@@ -50,7 +50,7 @@ settings from the client you hand it.
 | `fetch` | global `fetch` | all |
 | `analyzeUrl` | `https://api.diffbot.com/v3` | `extract` |
 | `crawlerUrl` | `https://api.diffbot.com/v3/crawl` | `crawl`, `crawlListJobs`, `crawlGetJob`, `crawlDeleteJob` |
-| `llmUrl` | `https://llm.diffbot.com/rag/v1/chat/completions` | `ask` |
+| `llmUrl` | `https://llm.diffbot.com/rag/v1/chat/completions` | `ask`, `askJson` |
 | `webSearchUrl` | `https://llm.diffbot.com/api/v1/web_search` | `webSearch` |
 | `nlpUrl` | `https://nl.diffbot.com/v1/` | `entities` |
 | `dqlUrl` | `https://kg.diffbot.com/kg/v3/dql` | `dql`, `dqlParallel` |
@@ -101,6 +101,49 @@ for await (const chunk of ask(db, [{ role: "user", content: "What's the capital 
 }
 ```
 
+### Structured output
+
+Pass a JSON Schema to constrain the answer. The model is held to the schema by a grammar
+during decoding, so the result parses reliably even though the answer is retrieved live
+from the web.
+
+```typescript
+import { askJson } from "@diffbot/typescript";
+
+const schema = {
+  type: "object",
+  properties: { country: { type: "string" }, capital: { type: "string" } },
+  required: ["country", "capital"],
+};
+const answer = await askJson<{ country: string; capital: string }>(
+  db,
+  [{ role: "user", content: "What's the capital of France?" }],
+  schema,
+);
+console.log(answer.capital);
+```
+
+Omit the schema to let the model choose the shape, or use `ask` with `responseFormat` to
+stream a constrained answer:
+
+```typescript
+import { ask, askJson, jsonSchemaFormat } from "@diffbot/typescript";
+
+const answer = await askJson(db, [{ role: "user", content: "What's the capital of France?" }]);
+
+for await (const chunk of ask(db, [{ role: "user", content: "What's the capital of France?" }], {
+  responseFormat: jsonSchemaFormat(schema),
+})) {
+  process.stdout.write(chunk);
+}
+```
+
+> **Avoid `responseFormat: { type: "json_object" }`.** The endpoint accepts it, but applies
+> no grammar to it: the RAG loop's internal tool call is itself a JSON object, so it can be
+> returned as the final answer. This is reproducible whenever the request includes a system
+> message. `askJson` therefore defaults to a permissive JSON Schema instead, and throws
+> `ValidationError` if it ever sees a tool call come back.
+
 ### Crawl a site
 
 ```typescript
@@ -128,6 +171,13 @@ const results = await webSearch(db, "diffbot knowledge graph");
 for (const r of results.search_results as Array<Record<string, unknown>>) {
   console.log(r.score, r.title, r.pageUrl);
 }
+
+// snippetLength controls how much of each page comes back in "content":
+// "short" (~1-1.5 KB per result), "medium", "long" (default), or "full"
+const brief = await webSearch(db, "diffbot knowledge graph", { numResults: 5, snippetLength: "short" });
+
+// "full" with a url: query returns the whole stored page
+const page = await webSearch(db, "url:https://en.wikipedia.org/wiki/Knowledge_graph", { snippetLength: "full" });
 ```
 
 ### Caching the Knowledge Graph ontology
@@ -233,7 +283,10 @@ in CI against workerd with `compatibility_flags: []`.
 | `dql_parallel()` | `dqlParallel()` |
 | `dql_fetch_ontology()` | `dqlFetchOntology()` |
 | `dql_refresh_ontology()` | `new OntologyStore(db).load({ refresh: true })` (or `FileOntologyStore` from `@diffbot/typescript/node`) |
-| `web_search()` | `webSearch()` |
+| `web_search(snippet_length=...)` | `webSearch(db, text, { snippetLength })` |
+| `ask(response_format=...)` | `ask(db, messages, { responseFormat })` |
+| `ask_json()` | `askJson()` |
+| `json_schema_format()` | `jsonSchemaFormat()` |
 
 ## Development
 

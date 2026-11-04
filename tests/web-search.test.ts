@@ -28,6 +28,41 @@ describe("webSearch", () => {
     await webSearch(db, "diffbot", { numResults: 5, maxTokens: 1000 });
   });
 
+  it("omits snippetLength and rerank unless asked", async () => {
+    const db = makeClient((req) => {
+      expect(req.params.get("snippetLength")).toBeNull();
+      expect(req.params.get("rerank")).toBeNull();
+      return jsonResponse({ search_results: [] });
+    });
+    await webSearch(db, "diffbot", { numResults: 3 });
+  });
+
+  it("sends snippetLength upper-cased", async () => {
+    const db = makeClient((req) => {
+      expect(req.params.get("size")).toBe("3");
+      expect(req.params.get("snippetLength")).toBe("SHORT");
+      expect(req.params.get("rerank")).toBeNull();
+      return jsonResponse({ search_results: [] });
+    });
+    await webSearch(db, "diffbot", { numResults: 3, snippetLength: "short" });
+  });
+
+  it("disables reranking for full snippets", async () => {
+    const db = makeClient((req) => {
+      expect(req.params.get("snippetLength")).toBe("FULL");
+      expect(req.params.get("rerank")).toBe("none");
+      return jsonResponse({ search_results: [] });
+    });
+    await webSearch(db, "url:https://example.com", { snippetLength: "full" });
+  });
+
+  it("rejects an unknown snippetLength", async () => {
+    const db = makeClient(() => jsonResponse({ search_results: [] }));
+    await expect(
+      webSearch(db, "diffbot", { snippetLength: "huge" as never }),
+    ).rejects.toMatchObject({ name: "ValidationError" });
+  });
+
   it("raises on error status", async () => {
     const db = makeClient(() => jsonResponse({ code: 401, message: "nope" }, 401));
     await expect(webSearch(db, "diffbot")).rejects.toMatchObject({ name: "AuthError" });

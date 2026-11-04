@@ -1,6 +1,6 @@
 {
   "name": "@diffbot/typescript",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "TypeScript client library for Diffbot APIs",
   "type": "module",
   "packageManager": "pnpm@10.33.0",

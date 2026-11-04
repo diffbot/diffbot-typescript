@@ -1,7 +1,18 @@
 export { DiffbotClient, type DiffbotClientOptions } from "./client.js";
 export { resolveTokenFromEnv, type TokenSource } from "./auth.js";
 export { extract } from "./extract.js";
-export { ask, type ChatMessage } from "./ask.js";
+export {
+  ANY_OBJECT_SCHEMA,
+  RESPONSE_FORMAT_TYPES,
+  ask,
+  askJson,
+  extractJson,
+  jsonSchemaFormat,
+  type AskOptions,
+  type ChatMessage,
+  type ResponseFormat,
+  type ResponseFormatType,
+} from "./ask.js";
 export {
   crawl,
   crawlDeleteJob,
@@ -27,7 +38,7 @@ export {
   type KVOntologyStoreOptions,
   type KVLike,
 } from "./ontology-store.js";
-export { webSearch } from "./web-search.js";
+export { webSearch, SNIPPET_LENGTHS, type SnippetLength, type WebSearchOptions } from "./web-search.js";
 export {
   DiffbotError,
   ValidationError,
