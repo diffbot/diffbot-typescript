@@ -86,7 +86,10 @@ jobs:
       - name: List artifact contents
         run: ls -lR package
 
+      # No checkout in this job, so read packageManager from the artifact's copy.
       - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: package/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
