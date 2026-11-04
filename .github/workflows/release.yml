@@ -99,7 +99,9 @@ jobs:
         working-directory: package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm publish --access public --no-git-checks --provenance
+        # The artifact is already built; --ignore-scripts skips prepublishOnly,
+        # which would re-run tsup in a directory with no node_modules.
+        run: pnpm publish --access public --no-git-checks --provenance --ignore-scripts
 
       - name: Publish GitHub Release
         env:
