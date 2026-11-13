@@ -54,6 +54,24 @@ describe("dql", () => {
     expect(JSON.parse(text)).toEqual({ data: [{ name: "Acme" }] });
   });
 
+  it("streams format: jsonl as an async generator of entities", async () => {
+    const lines = `${JSON.stringify({ value: "a" })}\n${JSON.stringify({ value: "b" })}\n`;
+    const db = makeClient((req) => {
+      expect(req.params.get("format")).toBe("jsonl");
+      return new Response(lines, { status: 200 });
+    });
+    const result = await dql(db, "type:Organization", { format: "jsonl" });
+    const items: unknown[] = [];
+    for await (const item of result) items.push(item);
+    expect(items).toEqual([{ value: "a" }, { value: "b" }]);
+  });
+
+  it("returns format: csv as plain text, not a JSON.parse attempt", async () => {
+    const db = makeClient(() => new Response("name,hits\nAcme,3\n", { status: 200 }));
+    const result = await dql(db, "type:Organization", { format: "csv" });
+    expect(result).toBe("name,hits\nAcme,3\n");
+  });
+
   it("preserves non-UTF-8 bytes in raw mode instead of corrupting them (xls/xlsx export)", async () => {
     // Invalid-UTF-8 byte sequences, as in a binary xls/xlsx body. Previously the response
     // was decoded as text (lossily, to U+FFFD) and then re-encoded, corrupting these bytes.

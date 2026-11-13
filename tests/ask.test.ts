@@ -218,4 +218,31 @@ describe("askJson", () => {
       { city: "NYC" },
     ]);
   });
+
+  it("checks the result with a parse hook instead of an unchecked cast", async () => {
+    const { db } = captureBody('{"capital": "Paris"}');
+    const seen: unknown[] = [];
+    const result = await askJson(db, [{ role: "user", content: "x" }], undefined, {
+      parse: (value) => {
+        seen.push(value);
+        if (typeof value !== "object" || value === null || !("capital" in value)) {
+          throw new Error("missing capital");
+        }
+        return { capital: String((value as { capital: unknown }).capital) };
+      },
+    });
+    expect(seen).toEqual([{ capital: "Paris" }]);
+    expect(result).toEqual({ capital: "Paris" });
+  });
+
+  it("propagates a parse hook's rejection", async () => {
+    const { db } = captureBody('{"capital": "Paris"}');
+    await expect(
+      askJson(db, [{ role: "user", content: "x" }], undefined, {
+        parse: () => {
+          throw new Error("validation failed");
+        },
+      }),
+    ).rejects.toThrow("validation failed");
+  });
 });

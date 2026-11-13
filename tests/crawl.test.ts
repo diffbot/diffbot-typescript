@@ -6,6 +6,8 @@ import {
   JobError,
   crawl,
   crawlDeleteJob,
+  crawlGetJob,
+  crawlListJobs,
 } from "../src/index.js";
 import { createMockFetch, jsonResponse, type MockHandler } from "./helpers/mock-fetch.js";
 
@@ -112,6 +114,21 @@ describe("crawl", () => {
     const urlEvent = events.find((e) => "url" in e.details);
     // The quoted field "https://example.com/a,b" must survive as one URL, not be split on its comma.
     expect(urlEvent?.details.url).toBe("https://example.com/a,b");
+  });
+
+  it("crawlGetJob returns undefined for a missing job, not {}", async () => {
+    const db = makeClient(() => jsonResponse({ jobs: [] }));
+    expect(await crawlGetJob(db, "nope")).toBeUndefined();
+  });
+
+  it("crawlGetJob returns the job record when found", async () => {
+    const db = makeClient(() => jsonResponse({ jobs: [{ name: "test-job" }] }));
+    expect(await crawlGetJob(db, "test-job")).toEqual({ name: "test-job" });
+  });
+
+  it("crawlListJobs returns an empty array when there are no jobs", async () => {
+    const db = makeClient(() => jsonResponse({ jobs: [] }));
+    expect(await crawlListJobs(db)).toEqual([]);
   });
 
   it("does not retry crawlDeleteJob (a GET-shaped mutation)", async () => {
