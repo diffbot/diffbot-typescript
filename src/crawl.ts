@@ -1,6 +1,7 @@
 import type { DiffbotClient } from "./client.js";
-import { APIError } from "./errors.js";
-import { readBodyText, raiseForStatus } from "./http.js";
+import { parseJsonText, readText } from "./decode.js";
+import { JobError } from "./errors.js";
+import { ensureOk } from "./http.js";
 import type { JsonObject } from "./json.js";
 
 export enum CrawlEventType {
@@ -57,19 +58,52 @@ function buildCrawlParams(
   return params;
 }
 
+/** Splits one CSV line into fields, honoring double-quoted fields with embedded
+ * commas and `""`-escaped quotes. Does not span quoted newlines across lines. */
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]!;
+    if (inQuotes) {
+      if (char === '"') {
+        if (line[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += char;
+      }
+    } else if (char === '"') {
+      inQuotes = true;
+    } else if (char === ",") {
+      fields.push(field);
+      field = "";
+    } else {
+      field += char;
+    }
+  }
+  fields.push(field);
+  return fields;
+}
+
 function parseUrlCsv(text: string, seenUrls: Set<string>): CrawlEvent[] {
   const events: CrawlEvent[] = [];
   const lines = text.trim().split("\n");
   if (lines.length < 2) return events;
 
-  const headers = lines[0]!.split(",").map((h) => h.trim());
+  const headers = parseCsvLine(lines[0]!).map((h) => h.trim());
   const urlIdx = headers.indexOf("Url");
   const timeIdx = headers.indexOf("Crawled Time");
   const statusIdx = headers.indexOf("Crawl Status");
 
   for (const line of lines.slice(1)) {
-    const cols = line.split(",");
-    const url = cols[urlIdx]?.replace(/^"|"$/g, "").trim() ?? "";
+    if (!line) continue;
+    const cols = parseCsvLine(line);
+    const url = cols[urlIdx]?.trim() ?? "";
     if (url && !seenUrls.has(url)) {
       seenUrls.add(url);
       events.push({
@@ -112,8 +146,7 @@ export async function* crawl(
   });
 
   const response = await client.http.get(client.crawlerUrl, { params });
-  const body = await readBodyText(response);
-  raiseForStatus(response, body);
+  await ensureOk(response);
 
   yield {
     eventType: CrawlEventType.JobCreated,
@@ -132,9 +165,10 @@ export async function* crawl(
     const statusResponse = await client.http.get(client.crawlerUrl, {
       params: { token: client.token, name: jobName },
     });
-    const statusBody = await readBodyText(statusResponse);
-    raiseForStatus(statusResponse, statusBody);
-    const jobs = (JSON.parse(statusBody) as JsonObject).jobs as JsonObject[] | undefined;
+    await ensureOk(statusResponse);
+    const jobs = parseJsonText<JsonObject>(await readText(statusResponse)).jobs as
+      | JsonObject[]
+      | undefined;
     if (!jobs?.length) break;
 
     const jobStatus = (jobs[0]!.jobStatus ?? {}) as JsonObject;
@@ -144,8 +178,8 @@ export async function* crawl(
       params: { token: client.token, name: jobName, type: "urls" },
       redirect: "follow",
     });
-    const urlsBody = await readBodyText(urlsResponse);
-    raiseForStatus(urlsResponse, urlsBody);
+    await ensureOk(urlsResponse);
+    const urlsBody = await readText(urlsResponse);
     if (urlsBody) {
       for (const event of parseUrlCsv(urlsBody, seenUrls)) {
         yield event;
@@ -155,7 +189,7 @@ export async function* crawl(
     if (statusCode !== 0 && statusCode !== 7) {
       const message = String(jobStatus.message ?? "");
       if (/fail|error/i.test(message)) {
-        throw new APIError(500, `Crawler job failed: ${message}`);
+        throw new JobError(jobName, `Crawler job failed: ${message}`);
       }
       break;
     }
@@ -168,25 +202,25 @@ export async function crawlListJobs(client: DiffbotClient): Promise<JsonObject[]
   const response = await client.http.get(client.crawlerUrl, {
     params: { token: client.token },
   });
-  const body = await readBodyText(response);
-  raiseForStatus(response, body);
-  return ((JSON.parse(body) as JsonObject).jobs as JsonObject[] | undefined) ?? [];
+  await ensureOk(response);
+  return (parseJsonText<JsonObject>(await readText(response)).jobs as JsonObject[] | undefined) ?? [];
 }
 
 export async function crawlGetJob(client: DiffbotClient, jobName: string): Promise<JsonObject> {
   const response = await client.http.get(client.crawlerUrl, {
     params: { token: client.token, name: jobName },
   });
-  const body = await readBodyText(response);
-  raiseForStatus(response, body);
-  const jobs = (JSON.parse(body) as JsonObject).jobs as JsonObject[] | undefined;
+  await ensureOk(response);
+  const jobs = parseJsonText<JsonObject>(await readText(response)).jobs as JsonObject[] | undefined;
   return jobs?.[0] ?? {};
 }
 
 export async function crawlDeleteJob(client: DiffbotClient, jobName: string): Promise<void> {
+  // A GET-shaped mutation: retrying it could issue a second delete against a job that
+  // no longer exists, so it must not be retried like an ordinary idempotent GET.
   const response = await client.http.get(client.crawlerUrl, {
     params: { token: client.token, name: jobName, delete: 1 },
+    retryable: false,
   });
-  const body = await readBodyText(response);
-  raiseForStatus(response, body);
+  await ensureOk(response);
 }

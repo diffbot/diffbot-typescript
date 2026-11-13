@@ -54,6 +54,18 @@ describe("dql", () => {
     expect(JSON.parse(text)).toEqual({ data: [{ name: "Acme" }] });
   });
 
+  it("preserves non-UTF-8 bytes in raw mode instead of corrupting them (xls/xlsx export)", async () => {
+    // Invalid-UTF-8 byte sequences, as in a binary xls/xlsx body. Previously the response
+    // was decoded as text (lossily, to U+FFFD) and then re-encoded, corrupting these bytes.
+    const binary = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x80, 0x81]);
+    const db = makeClient(() =>
+      new Response(binary, { status: 200, headers: { "Content-Type": "application/vnd.ms-excel" } }),
+    );
+    const result = await dql(db, "type:Organization", { format: "xlsx", raw: true });
+    expect(result).toBeInstanceOf(Uint8Array);
+    expect(Array.from(result as Uint8Array)).toEqual(Array.from(binary));
+  });
+
   it("raises AuthError on 401", async () => {
     const db = makeClient(() =>
       jsonResponse({ code: 401, message: "Unauthorized. Incorrect token." }, 401),

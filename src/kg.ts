@@ -1,5 +1,6 @@
 import type { DiffbotClient } from "./client.js";
-import { readBodyText, raiseForStatus } from "./http.js";
+import { parseJsonText, readBytes, readText } from "./decode.js";
+import { ensureOk } from "./http.js";
 import type { JsonObject } from "./json.js";
 import { Ontology } from "./ontology.js";
 
@@ -38,12 +39,13 @@ export async function dql(
 ): Promise<JsonObject | Uint8Array> {
   const params = buildDqlParams(client, query, options);
   const response = await client.http.get(client.dqlUrl, { params });
-  const body = await readBodyText(response);
-  raiseForStatus(response, body);
+  await ensureOk(response);
   if (options.raw) {
-    return new TextEncoder().encode(body);
+    // Read as bytes, not text-then-re-encode: xls/xlsx (and non-UTF-8 CSV) payloads
+    // are not valid UTF-8, so decoding and re-encoding them as text would corrupt them.
+    return readBytes(response);
   }
-  return JSON.parse(body) as JsonObject;
+  return parseJsonText<JsonObject>(await readText(response));
 }
 
 export async function dqlParallel(
@@ -73,9 +75,8 @@ export async function dqlParallel(
 /** Fetch the raw ontology JSON text. For a parsed, cached `Ontology`, see `OntologyStore`. */
 export async function dqlFetchOntologyText(client: DiffbotClient): Promise<string> {
   const response = await client.http.get(client.ontologyUrl);
-  const body = await readBodyText(response);
-  raiseForStatus(response, body);
-  return body;
+  await ensureOk(response);
+  return readText(response);
 }
 
 export async function dqlFetchOntology(client: DiffbotClient): Promise<Ontology> {
