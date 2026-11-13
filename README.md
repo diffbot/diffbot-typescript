@@ -46,15 +46,20 @@ settings from the client you hand it.
 | Option | Default | Used by |
 |--------|---------|---------|
 | `token` | — (required) | all |
-| `timeout` | `30000` (ms) | all |
+| `timeout` | `30000` (ms) | all; overridable per call (see below) |
+| `retry` | on, 3 attempts | all; `false` disables, or pass a `RetryPolicy` to tune it |
 | `fetch` | global `fetch` | all |
-| `analyzeUrl` | `https://api.diffbot.com/v3` | `extract` |
-| `crawlerUrl` | `https://api.diffbot.com/v3/crawl` | `crawl`, `crawlListJobs`, `crawlGetJob`, `crawlDeleteJob` |
-| `llmUrl` | `https://llm.diffbot.com/rag/v1/chat/completions` | `ask`, `askJson` |
-| `webSearchUrl` | `https://llm.diffbot.com/api/v1/web_search` | `webSearch` |
-| `nlpUrl` | `https://nl.diffbot.com/v1/` | `entities` |
-| `dqlUrl` | `https://kg.diffbot.com/kg/v3/dql` | `dql`, `dqlParallel` |
-| `ontologyUrl` | `https://kg.diffbot.com/kg/ontology` | `dqlFetchOntology`, `dqlFetchOntologyText`, `OntologyStore` |
+| `apiBase` | `https://api.diffbot.com` | `extract`, `crawl`, `crawlListJobs`, `crawlGetJob`, `crawlDeleteJob` |
+| `kgBase` | `https://kg.diffbot.com` | `dql`, `dqlParallel`, `dqlFetchOntology`, `dqlFetchOntologyText`, `OntologyStore` |
+| `llmBase` | `https://llm.diffbot.com` | `ask`, `askJson`, `webSearch` |
+| `nlpBase` | `https://nl.diffbot.com` | `entities` |
+| `analyzeUrl` | derived from `apiBase` | `extract` |
+| `crawlerUrl` | derived from `apiBase` | `crawl`, `crawlListJobs`, `crawlGetJob`, `crawlDeleteJob` |
+| `llmUrl` | derived from `llmBase` | `ask`, `askJson` |
+| `webSearchUrl` | derived from `llmBase` | `webSearch` |
+| `nlpUrl` | derived from `nlpBase` | `entities` |
+| `dqlUrl` | derived from `kgBase` | `dql`, `dqlParallel` |
+| `ontologyUrl` | derived from `kgBase` | `dqlFetchOntology`, `dqlFetchOntologyText`, `OntologyStore` |
 
 ```typescript
 import { DiffbotClient } from "@diffbot/typescript";
@@ -66,8 +71,29 @@ const db = new DiffbotClient({
 });
 ```
 
-`analyzeUrl` and `crawlerUrl` are bases that the SDK appends to (`/${api}` and `/data`
-respectively); the rest are complete endpoints, used as given.
+Point the whole SDK at a staging environment with one option instead of one per endpoint:
+
+```typescript
+const staging = new DiffbotClient({ token: "YOUR_TOKEN", apiBase: "https://staging.example.com" });
+```
+
+`apiBase`/`kgBase`/`llmBase`/`nlpBase` set the host for every endpoint on that host at
+once. The older per-endpoint options (`analyzeUrl`, `crawlerUrl`, `llmUrl`,
+`webSearchUrl`, `nlpUrl`, `dqlUrl`, `ontologyUrl`) still work and win over the matching
+base when both are set; `analyzeUrl` and `crawlerUrl` are bases the SDK appends to
+(`/${api}` and `/data` respectively), the rest are complete endpoints used as given.
+
+Requests retry `429` and `5xx` responses (and connection errors) with backoff and
+jitter, honoring a `Retry-After` header, by default. Disable retries or tune the policy:
+
+```typescript
+const db = new DiffbotClient({ token: "YOUR_TOKEN", retry: false });
+// or: retry: { maxAttempts: 5 }
+```
+
+The transport also accepts a per-call `timeout` (ms) override and a `retryable: false`
+escape hatch; the SDK uses the latter internally for `crawlDeleteJob`, a GET-shaped
+mutation that must not be retried blindly.
 
 Passing `fetch` replaces the transport, which is the hook for retries, logging, extra
 headers, or mocking in tests:

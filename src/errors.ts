@@ -1,5 +1,7 @@
 /** Exception hierarchy for the Diffbot SDK. */
 
+import { tryParseErrorBody } from "./decode.js";
+
 export class DiffbotError extends Error {
   override name = "DiffbotError";
 }
@@ -13,17 +15,10 @@ export class APIError extends DiffbotError {
   body: string;
   apiMessage: string | undefined;
   requestId: string | undefined;
+  headers: Record<string, string> | undefined;
 
-  constructor(statusCode: number, body: string) {
-    let apiMessage: string | undefined;
-    let requestId: string | undefined;
-    try {
-      const data = JSON.parse(body) as { message?: string; requestId?: string };
-      apiMessage = data.message;
-      requestId = data.requestId;
-    } catch {
-      /* ignore parse errors */
-    }
+  constructor(statusCode: number, body: string, headers?: Record<string, string>) {
+    const { message: apiMessage, requestId } = tryParseErrorBody(body);
     const display = apiMessage ?? (body.length > 200 ? `${body.slice(0, 200)}...` : body);
     super(`Diffbot API error ${statusCode}: ${display}`);
     this.name = "APIError";
@@ -31,8 +26,8 @@ export class APIError extends DiffbotError {
     this.body = body;
     this.apiMessage = apiMessage;
     this.requestId = requestId;
+    this.headers = headers;
   }
-
 }
 
 export class AuthError extends APIError {
@@ -43,9 +38,34 @@ export class RateLimitError extends APIError {
   retryAfter: string | undefined;
   override name = "RateLimitError";
 
-  constructor(statusCode: number, body: string, retryAfter?: string | null) {
-    super(statusCode, body);
+  constructor(
+    statusCode: number,
+    body: string,
+    retryAfter?: string | null,
+    headers?: Record<string, string>,
+  ) {
+    super(statusCode, body, headers);
     this.retryAfter = retryAfter ?? undefined;
+  }
+}
+
+/** A 404 from an endpoint with a documented "not found" shape (e.g. a missing job or report). */
+export class NotFoundError extends APIError {
+  override name = "NotFoundError";
+}
+
+/**
+ * A job (crawl or bulk) that completed its HTTP request successfully but reports a
+ * failed status internally. Subclasses `APIError` so existing `catch (APIError)` sites
+ * keep working; `instanceof JobError` distinguishes it from a transport-level failure.
+ */
+export class JobError extends APIError {
+  override name = "JobError";
+  jobName: string;
+
+  constructor(jobName: string, message: string) {
+    super(500, message);
+    this.jobName = jobName;
   }
 }
 

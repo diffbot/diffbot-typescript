@@ -1,6 +1,7 @@
 import type { DiffbotClient } from "./client.js";
+import { parseJsonText, readText } from "./decode.js";
 import { ValidationError } from "./errors.js";
-import { readBodyText, raiseForStatus } from "./http.js";
+import { ensureOk } from "./http.js";
 import type { JsonObject } from "./json.js";
 
 /** How much of each page's matching content the web search returns in `content`. */
@@ -40,7 +41,6 @@ export async function webSearch(
   }
 
   const response = await client.http.get(client.webSearchUrl, { headers, params });
-  const body = await readBodyText(response);
-  raiseForStatus(response, body);
-  return JSON.parse(body) as JsonObject;
+  await ensureOk(response);
+  return parseJsonText<JsonObject>(await readText(response));
 }

@@ -1,6 +1,7 @@
 import type { DiffbotClient } from "./client.js";
+import { parseJsonText } from "./decode.js";
 import { ValidationError } from "./errors.js";
-import { readBodyText, raiseForStatus } from "./http.js";
+import { ensureOk } from "./http.js";
 import type { JsonObject } from "./json.js";
 
 export interface ChatMessage {
@@ -141,13 +142,14 @@ function checkToolCallLeak<T>(parsed: T): T {
   return parsed;
 }
 
+interface ChatCompletionChunkLike {
+  choices?: Array<{ delta?: { content?: string } }>;
+}
+
 function parseChunk(line: string): string | undefined {
   try {
-    const chunk = JSON.parse(line.replace(/^data: /, "")) as {
-      choices?: Array<{ delta?: { content?: string } }>;
-    };
-    const content = chunk.choices?.[0]?.delta?.content;
-    return content ?? undefined;
+    const chunk = parseJsonText<ChatCompletionChunkLike>(line.replace(/^data: /, ""));
+    return chunk.choices?.[0]?.delta?.content ?? undefined;
   } catch {
     return undefined;
   }
@@ -188,11 +190,7 @@ export async function* ask(
   if (options.responseFormat !== undefined) payload.response_format = options.responseFormat;
 
   const response = await client.http.post(client.llmUrl, { headers, json: payload });
-  if (!response.ok) {
-    const body = await readBodyText(response);
-    raiseForStatus(response, body);
-    return;
-  }
+  await ensureOk(response);
 
   if (response.body) {
     for await (const line of linesFromStream(response.body)) {

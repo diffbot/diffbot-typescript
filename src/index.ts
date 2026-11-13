@@ -44,9 +44,11 @@ export {
   ValidationError,
   APIError,
   AuthError,
+  NotFoundError,
   RateLimitError,
+  JobError,
   ExtractionError,
 } from "./errors.js";
 export { VERSION } from "./constants.js";
-export type { FetchFn } from "./http.js";
+export type { FetchFn, QueryParams, RetryPolicy } from "./http.js";
 export type { JsonObject } from "./json.js";

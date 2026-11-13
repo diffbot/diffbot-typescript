@@ -107,6 +107,32 @@ describe("README examples", () => {
     expect(result.sentiment).toBe(0.3);
   });
 
+  it("apiBase points every api.diffbot.com endpoint at a staging host", async () => {
+    const staging = new DiffbotClient({
+      token: "test-token",
+      apiBase: "https://staging.example.com",
+      fetch: createMockFetch((req) => {
+        expect(req.url).toBe("https://staging.example.com/v3/analyze");
+        return jsonResponse({ objects: [] });
+      }),
+    });
+    await extract(staging, "https://news.ycombinator.com");
+  });
+
+  it("retry: false disables retries", async () => {
+    let calls = 0;
+    const db = new DiffbotClient({
+      token: "test-token",
+      retry: false,
+      fetch: createMockFetch(() => {
+        calls++;
+        return new Response("", { status: 503 });
+      }),
+    });
+    await expect(dql(db, "type:Organization")).rejects.toMatchObject({ statusCode: 503 });
+    expect(calls).toBe(1);
+  });
+
   it("extract with await using", async () => {
     await using db = new DiffbotClient({
       token: "test-token",

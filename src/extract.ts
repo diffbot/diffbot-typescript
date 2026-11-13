@@ -1,6 +1,7 @@
 import type { DiffbotClient } from "./client.js";
+import { parseJsonText, readText } from "./decode.js";
 import { ExtractionError } from "./errors.js";
-import { raiseForStatus, readBodyText } from "./http.js";
+import { ensureOk } from "./http.js";
 import type { JsonObject } from "./json.js";
 
 function buildParams(client: DiffbotClient, url: string, fmt: string) {
@@ -39,7 +40,6 @@ export async function extract(
   const response = await client.http.get(`${client.analyzeUrl}/${api}`, {
     params: buildParams(client, normalized, fmt),
   });
-  const body = await readBodyText(response);
-  raiseForStatus(response, body);
-  return parseResponse(JSON.parse(body) as JsonObject);
+  await ensureOk(response);
+  return parseResponse(parseJsonText<JsonObject>(await readText(response)));
 }
