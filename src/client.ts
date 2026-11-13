@@ -65,6 +65,9 @@ export class DiffbotClient {
     this.llmBase = options.llmBase ?? LLM_BASE;
     this.nlpBase = options.nlpBase ?? NLP_HOST_BASE;
 
+    // This constructor is the one sanctioned reader of these deprecated aliases: it's
+    // what makes them "win over" the matching base when set.
+    /* eslint-disable @typescript-eslint/no-deprecated */
     this.analyzeUrl = options.analyzeUrl ?? `${this.apiBase}/v3`;
     this.crawlerUrl = options.crawlerUrl ?? `${this.apiBase}/v3/crawl`;
     this.llmUrl = options.llmUrl ?? `${this.llmBase}/rag/v1/chat/completions`;
@@ -72,6 +75,7 @@ export class DiffbotClient {
     this.nlpUrl = options.nlpUrl ?? `${this.nlpBase}/v1/`;
     this.dqlUrl = options.dqlUrl ?? `${this.kgBase}/kg/v3/dql`;
     this.ontologyUrl = options.ontologyUrl ?? `${this.kgBase}/kg/ontology`;
+    /* eslint-enable @typescript-eslint/no-deprecated */
 
     this.http = new HttpClient(
       options.fetch ?? fetch,

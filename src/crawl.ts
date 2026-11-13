@@ -70,7 +70,8 @@ function parseCsvLine(line: string): string[] {
   let field = "";
   let inQuotes = false;
   for (let i = 0; i < line.length; i++) {
-    const char = line[i]!;
+    const char = line[i];
+    if (char === undefined) break;
     if (inQuotes) {
       if (char === '"') {
         if (line[i + 1] === '"') {
@@ -97,15 +98,15 @@ function parseCsvLine(line: string): string[] {
 
 function parseUrlCsv(text: string, seenUrls: Set<string>): CrawlEvent[] {
   const events: CrawlEvent[] = [];
-  const lines = text.trim().split("\n");
-  if (lines.length < 2) return events;
+  const [headerLine, ...dataLines] = text.trim().split("\n");
+  if (headerLine === undefined || dataLines.length === 0) return events;
 
-  const headers = parseCsvLine(lines[0]!).map((h) => h.trim());
+  const headers = parseCsvLine(headerLine).map((h) => h.trim());
   const urlIdx = headers.indexOf("Url");
   const timeIdx = headers.indexOf("Crawled Time");
   const statusIdx = headers.indexOf("Crawl Status");
 
-  for (const line of lines.slice(1)) {
+  for (const line of dataLines) {
     if (!line) continue;
     const cols = parseCsvLine(line);
     const url = cols[urlIdx]?.trim() ?? "";
@@ -133,8 +134,8 @@ export async function* crawl(
   site: string,
   options: CrawlOptions = {},
 ): AsyncGenerator<CrawlEvent> {
-  let normalizedSite = site.startsWith("http") ? site : `https://${site}`;
-  const jobName = options.jobName ?? `crawl-${Math.floor(Date.now() / 1000)}`;
+  const normalizedSite = site.startsWith("http") ? site : `https://${site}`;
+  const jobName = options.jobName ?? `crawl-${Math.floor(Date.now() / 1000).toString()}`;
 
   const params = buildCrawlParams(client, jobName, normalizedSite, {
     hops: options.hops ?? 2,
@@ -166,16 +167,17 @@ export async function* crawl(
   const seenUrls = new Set<string>();
   const pollInterval = options.pollInterval ?? 2000;
 
-  while (true) {
+  for (;;) {
     const statusResponse = await client.http.get(client.crawlerUrl, {
       params: { token: client.token, name: jobName },
     });
     await ensureOk(statusResponse);
     const jobs = parseJsonText<CrawlListResponse>(await readText(statusResponse)).jobs;
-    if (!jobs?.length) break;
+    const job = jobs?.[0];
+    if (!job) break;
 
-    const jobStatus = jobs[0]!.jobStatus ?? {};
-    const statusCode = Number(jobStatus.status ?? 0);
+    const jobStatus = job.jobStatus ?? {};
+    const statusCode = jobStatus.status ?? 0;
 
     const urlsResponse = await client.http.get(`${client.crawlerUrl}/data`, {
       params: { token: client.token, name: jobName, type: "urls" },
@@ -190,7 +192,7 @@ export async function* crawl(
     }
 
     if (statusCode !== 0 && statusCode !== 7) {
-      const message = String(jobStatus.message ?? "");
+      const message = jobStatus.message ?? "";
       if (/fail|error/i.test(message)) {
         throw new JobError(jobName, `Crawler job failed: ${message}`);
       }

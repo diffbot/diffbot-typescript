@@ -182,8 +182,9 @@ export class HttpClient {
     }
   }
 
-  async close(): Promise<void> {
+  close(): Promise<void> {
     this.closed = true;
+    return Promise.resolve();
   }
 
   get isClosed(): boolean {

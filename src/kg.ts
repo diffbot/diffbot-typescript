@@ -91,16 +91,17 @@ export async function dqlParallel(
   if (!queries.length) return [];
 
   const limit = Math.min(workers, queries.length);
-  const results: Array<DqlResponse | string | Uint8Array | AsyncGenerator<DqlEntity>> = new Array(
+  const results = new Array<DqlResponse | string | Uint8Array | AsyncGenerator<DqlEntity>>(
     queries.length,
   );
   let index = 0;
 
   async function worker(): Promise<void> {
-    while (true) {
+    for (;;) {
       const current = index++;
-      if (current >= queries.length) return;
-      const { query, ...opts } = queries[current]!;
+      const entry = queries[current];
+      if (entry === undefined) return;
+      const { query, ...opts } = entry;
       results[current] = await dql(client, query, opts);
     }
   }

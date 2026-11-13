@@ -8,4 +8,3 @@ export type NlpField = "entities" | "sentiment" | "facts" | "records" | "categor
 
 type _NaturalLanguageResponseIsJsonObject = NaturalLanguageResponse extends JsonObject ? true : never;
 const _naturalLanguageResponseIsJsonObject: _NaturalLanguageResponseIsJsonObject = true;
-void _naturalLanguageResponseIsJsonObject;

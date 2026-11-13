@@ -5,7 +5,6 @@ import { ensureOk } from "./http.js";
 import type {
   AnalyzeObject,
   ArticleObject,
-  CustomApiObject,
   DiscussionObject,
   EventObject,
   ExtractResponse,
@@ -30,7 +29,7 @@ function buildParams(client: DiffbotClient, url: string, fmt: string) {
 
 function parseResponse<T extends ExtractResponse>(data: T): T {
   if ("errorCode" in data) {
-    throw new ExtractionError(Number(data.errorCode), String(data.error ?? ""));
+    throw new ExtractionError(Number(data.errorCode), data.error ?? "");
   }
   return data;
 }
@@ -99,7 +98,7 @@ export async function extract(
   url: string,
   api: string,
   fmt?: string,
-): Promise<ExtractResponse<CustomApiObject>>;
+): Promise<ExtractResponse>;
 export async function extract(
   client: DiffbotClient,
   url: string,

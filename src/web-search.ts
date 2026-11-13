@@ -11,6 +11,11 @@ export type SnippetLength = "short" | "medium" | "long" | "full";
 
 export const SNIPPET_LENGTHS: readonly SnippetLength[] = ["short", "medium", "long", "full"];
 
+function isSnippetLength(value: string): value is SnippetLength {
+  const lengths: readonly string[] = SNIPPET_LENGTHS;
+  return lengths.includes(value);
+}
+
 export interface WebSearchOptions {
   numResults?: number;
   maxTokens?: number;
@@ -32,8 +37,8 @@ export async function webSearch(
   if (options.numResults !== undefined) params.size = options.numResults;
   if (options.maxTokens !== undefined) params.maxTokens = options.maxTokens;
   if (options.snippetLength !== undefined) {
-    const length = options.snippetLength.toLowerCase() as SnippetLength;
-    if (!SNIPPET_LENGTHS.includes(length)) {
+    const length = options.snippetLength.toLowerCase();
+    if (!isSnippetLength(length)) {
       throw new ValidationError(
         `snippetLength must be one of ${SNIPPET_LENGTHS.join(", ")}; got ${JSON.stringify(options.snippetLength)}`,
       );

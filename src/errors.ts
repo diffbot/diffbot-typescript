@@ -20,7 +20,7 @@ export class APIError extends DiffbotError {
   constructor(statusCode: number, body: string, headers?: Record<string, string>) {
     const { message: apiMessage, requestId } = tryParseErrorBody(body);
     const display = apiMessage ?? (body.length > 200 ? `${body.slice(0, 200)}...` : body);
-    super(`Diffbot API error ${statusCode}: ${display}`);
+    super(`Diffbot API error ${statusCode.toString()}: ${display}`);
     this.name = "APIError";
     this.statusCode = statusCode;
     this.body = body;
@@ -75,7 +75,7 @@ export class ExtractionError extends DiffbotError {
   override name = "ExtractionError";
 
   constructor(errorCode: number, error: string) {
-    super(`Diffbot extraction error ${errorCode}: ${error}`);
+    super(`Diffbot extraction error ${errorCode.toString()}: ${error}`);
     this.errorCode = errorCode;
     this.error = error;
   }

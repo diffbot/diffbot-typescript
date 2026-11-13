@@ -121,10 +121,10 @@ export class Ontology {
   }
 
   static formatField(name: string, meta: FieldMeta): string {
-    let typeName = String(meta.type ?? "?");
+    let typeName = meta.type ?? "?";
     if (typeName === "LinkedEntity") {
-      const le = meta.leType;
-      if (le?.length) typeName = `LinkedEntity (${le[0]})`;
+      const first = meta.leType?.[0];
+      if (first) typeName = `LinkedEntity (${first})`;
     }
     const flags: string[] = [];
     if (meta.isList) flags.push("isList");

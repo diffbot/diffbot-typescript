@@ -1,5 +1,5 @@
 import type { DiffbotClient } from "./client.js";
-import { parseJsonText } from "./decode.js";
+import { parseJsonText, unsafeCast } from "./decode.js";
 import { ValidationError } from "./errors.js";
 import { ensureOk } from "./http.js";
 import type { JsonObject } from "./json.js";
@@ -37,6 +37,9 @@ export interface AskOptions {
  * without an error, so prefer this helper over hand-building the object.
  */
 export function jsonSchemaFormat(schema: JsonObject, name = "response"): ResponseFormat {
+  // These checks are unreachable if the caller respects `schema: JsonObject` — they
+  // defend against a plain-JS caller (or an `any`/`as` escape) passing something else.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (schema === null || typeof schema !== "object" || Array.isArray(schema)) {
     throw new ValidationError("schema must be a JSON Schema object");
   }
@@ -46,17 +49,22 @@ export function jsonSchemaFormat(schema: JsonObject, name = "response"): Respons
 /** Reject shapes the endpoint would accept but silently not enforce. */
 function validateResponseFormat(responseFormat: ResponseFormat | undefined): void {
   if (responseFormat === undefined) return;
+  // Same rationale as jsonSchemaFormat above: defends against a caller not using the
+  // declared `ResponseFormat` type, where these fields aren't actually guaranteed.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (responseFormat === null || typeof responseFormat !== "object" || Array.isArray(responseFormat)) {
     throw new ValidationError("responseFormat must be an object");
   }
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   const fmtType = responseFormat.type ?? "text";
-  if (!(RESPONSE_FORMAT_TYPES as readonly string[]).includes(fmtType)) {
+  if (!RESPONSE_FORMAT_TYPES.includes(fmtType)) {
     throw new ValidationError(
       `responseFormat type must be one of ${RESPONSE_FORMAT_TYPES.join(", ")}; got ${JSON.stringify(fmtType)}`,
     );
   }
   if (fmtType === "json_schema") {
     const jsonSchema = responseFormat.json_schema;
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (jsonSchema === null || typeof jsonSchema !== "object" || !("schema" in jsonSchema)) {
       throw new ValidationError(
         'responseFormat { type: "json_schema" } requires the schema nested as ' +
@@ -127,15 +135,14 @@ function resolveFormat(
   return jsonSchemaFormat(schema ?? ANY_OBJECT_SCHEMA);
 }
 
+function isFunctionCallLeak(value: unknown): value is { name: string; arguments: unknown } {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  return "name" in value && value.name === "functioncall" && "arguments" in value;
+}
+
 /** Catch the internal tool call surfacing as the answer (see ANY_OBJECT_SCHEMA). */
 function checkToolCallLeak<T>(parsed: T): T {
-  if (
-    parsed !== null &&
-    typeof parsed === "object" &&
-    !Array.isArray(parsed) &&
-    (parsed as JsonObject).name === "functioncall" &&
-    "arguments" in (parsed as JsonObject)
-  ) {
+  if (isFunctionCallLeak(parsed)) {
     throw new ValidationError(
       "the model returned its internal tool call instead of an answer; this happens with " +
         'responseFormat { type: "json_object" } because the server applies no grammar to it. ' +
@@ -165,7 +172,7 @@ async function* linesFromStream(body: ReadableStream<Uint8Array>): AsyncGenerato
   const decoder = new TextDecoder();
   let buffer = "";
 
-  while (true) {
+  for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
@@ -231,5 +238,5 @@ export async function askJson<T = unknown>(
   let text = "";
   for await (const chunk of ask(client, messages, { responseFormat })) text += chunk;
   const parsed = checkToolCallLeak(extractJson(text));
-  return options.parse ? options.parse(parsed) : (parsed as T);
+  return options.parse ? options.parse(parsed) : unsafeCast<T>(parsed);
 }

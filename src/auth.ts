@@ -1,4 +1,5 @@
 import { TOKEN_ENV_VAR } from "./constants.js";
+import { unsafeCast } from "./decode.js";
 
 /*
  * `object`, not `Record<string, unknown>`: a typed Workers `Env` is normally
@@ -11,7 +12,7 @@ import { TOKEN_ENV_VAR } from "./constants.js";
 export type TokenSource = object;
 
 function envToken(env: TokenSource | undefined): string {
-  const fromEnv = (env as Record<string, unknown> | undefined)?.[TOKEN_ENV_VAR];
+  const fromEnv = unsafeCast<Record<string, unknown> | undefined>(env)?.[TOKEN_ENV_VAR];
   if (typeof fromEnv === "string" && fromEnv.trim()) {
     return fromEnv.trim();
   }
@@ -21,7 +22,7 @@ function envToken(env: TokenSource | undefined): string {
    * in Workers/browsers, and touching it unconditionally would reintroduce a
    * runtime-specific dependency into an otherwise platform-neutral module.
    */
-  const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
+  const proc = unsafeCast<{ process?: { env?: Record<string, string | undefined> } }>(globalThis).process;
   const fromProcess = proc?.env?.[TOKEN_ENV_VAR];
   return fromProcess?.trim() ?? "";
 }

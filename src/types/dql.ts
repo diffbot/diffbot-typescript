@@ -11,4 +11,3 @@ export type ExportFormat = "json" | "jsonl" | "csv" | "xls" | "xlsx";
 // typesafety-revision.md) so a server-added field never breaks a caller.
 type _DqlResponseIsJsonObject = DqlResponse extends JsonObject ? true : never;
 const _dqlResponseIsJsonObject: _DqlResponseIsJsonObject = true;
-void _dqlResponseIsJsonObject;

@@ -7,4 +7,3 @@ export type WebSearchResult = NonNullable<WebSearchResponse["search_results"]>[n
 
 type _WebSearchResponseIsJsonObject = WebSearchResponse extends JsonObject ? true : never;
 const _webSearchResponseIsJsonObject: _WebSearchResponseIsJsonObject = true;
-void _webSearchResponseIsJsonObject;

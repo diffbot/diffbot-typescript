@@ -35,6 +35,10 @@ export async function readBytes(response: Response): Promise<Uint8Array> {
   return new Uint8Array(buffer);
 }
 
+/* eslint-disable @typescript-eslint/no-unnecessary-type-parameters --
+   T appears only in the return position by design: these are type-assertion
+   helpers, not narrowing generics, so a caller supplying T is the whole point. */
+
 /** Parse already-read text as JSON. The sole sanctioned `as` for response payloads. */
 export function parseJsonText<T = JsonObject>(text: string): T {
   return JSON.parse(text) as T;
@@ -43,6 +47,17 @@ export function parseJsonText<T = JsonObject>(text: string): T {
 export async function readJson<T = JsonObject>(response: Response): Promise<T> {
   return parseJsonText<T>(await response.text());
 }
+
+/**
+ * The one sanctioned `as` for the whole package (lint-enforced): every other module
+ * that needs to assert a type it cannot prove — a runtime environment's shape, an
+ * unchecked `askJson<T>()` fallback — calls this instead of writing `as` directly, so
+ * every unprovable assertion in the codebase is findable from one place.
+ */
+export function unsafeCast<T>(value: unknown): T {
+  return value as T;
+}
+/* eslint-enable @typescript-eslint/no-unnecessary-type-parameters */
 
 /**
  * Line-delimited JSON (`format=jsonl`), streamed when the runtime exposes a readable
@@ -57,11 +72,11 @@ export async function* readNdjson<T = unknown>(response: Response): AsyncGenerat
     return;
   }
 
-  const reader = response.body.getReader();
+  const reader: ReadableStreamDefaultReader<Uint8Array> = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
 
-  while (true) {
+  for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
