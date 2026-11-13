@@ -1,18 +1,31 @@
 import type { DiffbotClient } from "./client.js";
-import { parseJsonText, readBytes, readText } from "./decode.js";
+import { parseJsonText, readBytes, readNdjson, readText } from "./decode.js";
 import { ensureOk } from "./http.js";
-import type { JsonObject } from "./json.js";
 import { Ontology } from "./ontology.js";
+import type { DqlEntity, DqlResponse, ExportFormat } from "./types/dql.js";
+import type { ExtraParams } from "./types/extra.js";
+
+type DqlNamedParam = "token" | "query" | "size" | "from" | "format" | "filter" | "exportspec";
 
 export interface DqlOptions {
   size?: number;
   from?: number;
-  format?: string;
+  format?: ExportFormat;
   filter?: string;
   exportspec?: string;
-  extra?: Record<string, string>;
+  extra?: ExtraParams<DqlNamedParam>;
   raw?: boolean;
 }
+
+type DqlResultFor<O extends DqlOptions> = O extends { format: "jsonl" }
+  ? AsyncGenerator<DqlEntity>
+  : O extends { raw: true }
+    ? Uint8Array
+    : O extends { format: "xls" | "xlsx" }
+      ? Uint8Array
+      : O extends { format: "csv" }
+        ? string
+        : DqlResponse;
 
 function buildDqlParams(
   client: DiffbotClient,
@@ -32,31 +45,55 @@ function buildDqlParams(
   return params;
 }
 
+function resolveDqlKind(format: ExportFormat | undefined, raw: boolean | undefined): "json" | "text" | "bytes" | "ndjson" {
+  if (format === "jsonl") return "ndjson";
+  if (raw) return "bytes";
+  if (format === "xls" || format === "xlsx") return "bytes";
+  if (format === "csv") return "text";
+  return "json";
+}
+
+export async function dql<const O extends DqlOptions = Record<string, never>>(
+  client: DiffbotClient,
+  query: string,
+  options?: O,
+): Promise<DqlResultFor<O>>;
 export async function dql(
   client: DiffbotClient,
   query: string,
   options: DqlOptions = {},
-): Promise<JsonObject | Uint8Array> {
+): Promise<DqlResponse | string | Uint8Array | AsyncGenerator<DqlEntity>> {
   const params = buildDqlParams(client, query, options);
   const response = await client.http.get(client.dqlUrl, { params });
   await ensureOk(response);
-  if (options.raw) {
-    // Read as bytes, not text-then-re-encode: xls/xlsx (and non-UTF-8 CSV) payloads
-    // are not valid UTF-8, so decoding and re-encoding them as text would corrupt them.
-    return readBytes(response);
+  switch (resolveDqlKind(options.format, options.raw)) {
+    case "ndjson":
+      return readNdjson<DqlEntity>(response);
+    case "bytes":
+      return readBytes(response);
+    case "text":
+      return readText(response);
+    default:
+      return parseJsonText<DqlResponse>(await readText(response));
   }
-  return parseJsonText<JsonObject>(await readText(response));
 }
 
+export async function dqlParallel<const Q extends ReadonlyArray<DqlOptions & { query: string }>>(
+  client: DiffbotClient,
+  queries: Q,
+  workers?: number,
+): Promise<{ [K in keyof Q]: DqlResultFor<Q[K]> }>;
 export async function dqlParallel(
   client: DiffbotClient,
-  queries: Array<DqlOptions & { query: string }>,
+  queries: ReadonlyArray<DqlOptions & { query: string }>,
   workers = 8,
-): Promise<Array<JsonObject | Uint8Array>> {
+): Promise<Array<DqlResponse | string | Uint8Array | AsyncGenerator<DqlEntity>>> {
   if (!queries.length) return [];
 
   const limit = Math.min(workers, queries.length);
-  const results: Array<JsonObject | Uint8Array> = new Array(queries.length);
+  const results: Array<DqlResponse | string | Uint8Array | AsyncGenerator<DqlEntity>> = new Array(
+    queries.length,
+  );
   let index = 0;
 
   async function worker(): Promise<void> {

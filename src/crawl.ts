@@ -3,6 +3,11 @@ import { parseJsonText, readText } from "./decode.js";
 import { JobError } from "./errors.js";
 import { ensureOk } from "./http.js";
 import type { JsonObject } from "./json.js";
+import type { CrawlJob } from "./types/undocumented.js";
+
+interface CrawlListResponse extends JsonObject {
+  jobs?: CrawlJob[];
+}
 
 export enum CrawlEventType {
   JobCreated = "job_created",
@@ -166,12 +171,10 @@ export async function* crawl(
       params: { token: client.token, name: jobName },
     });
     await ensureOk(statusResponse);
-    const jobs = parseJsonText<JsonObject>(await readText(statusResponse)).jobs as
-      | JsonObject[]
-      | undefined;
+    const jobs = parseJsonText<CrawlListResponse>(await readText(statusResponse)).jobs;
     if (!jobs?.length) break;
 
-    const jobStatus = (jobs[0]!.jobStatus ?? {}) as JsonObject;
+    const jobStatus = jobs[0]!.jobStatus ?? {};
     const statusCode = Number(jobStatus.status ?? 0);
 
     const urlsResponse = await client.http.get(`${client.crawlerUrl}/data`, {
@@ -198,21 +201,22 @@ export async function* crawl(
   }
 }
 
-export async function crawlListJobs(client: DiffbotClient): Promise<JsonObject[]> {
+export async function crawlListJobs(client: DiffbotClient): Promise<CrawlJob[]> {
   const response = await client.http.get(client.crawlerUrl, {
     params: { token: client.token },
   });
   await ensureOk(response);
-  return (parseJsonText<JsonObject>(await readText(response)).jobs as JsonObject[] | undefined) ?? [];
+  return parseJsonText<CrawlListResponse>(await readText(response)).jobs ?? [];
 }
 
-export async function crawlGetJob(client: DiffbotClient, jobName: string): Promise<JsonObject> {
+/** `undefined` when no job with this name exists (previously an indistinguishable `{}`). */
+export async function crawlGetJob(client: DiffbotClient, jobName: string): Promise<CrawlJob | undefined> {
   const response = await client.http.get(client.crawlerUrl, {
     params: { token: client.token, name: jobName },
   });
   await ensureOk(response);
-  const jobs = parseJsonText<JsonObject>(await readText(response)).jobs as JsonObject[] | undefined;
-  return jobs?.[0] ?? {};
+  const jobs = parseJsonText<CrawlListResponse>(await readText(response)).jobs;
+  return jobs?.[0];
 }
 
 export async function crawlDeleteJob(client: DiffbotClient, jobName: string): Promise<void> {

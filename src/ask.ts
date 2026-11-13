@@ -3,9 +3,12 @@ import { parseJsonText } from "./decode.js";
 import { ValidationError } from "./errors.js";
 import { ensureOk } from "./http.js";
 import type { JsonObject } from "./json.js";
+import type { ChatCompletionChunk, ChatCompletionRequest, ChatRole } from "./types/undocumented.js";
+
+export type { ChatRole } from "./types/undocumented.js";
 
 export interface ChatMessage {
-  role: string;
+  role: ChatRole;
   content: string;
 }
 
@@ -15,7 +18,7 @@ const MODEL = "diffbot-small-xl";
 export const RESPONSE_FORMAT_TYPES = ["text", "json_object", "json_schema"] as const;
 export type ResponseFormatType = (typeof RESPONSE_FORMAT_TYPES)[number];
 
-export interface ResponseFormat {
+export interface ResponseFormat extends JsonObject {
   type: ResponseFormatType;
   json_schema?: { name?: string; schema: JsonObject };
 }
@@ -142,13 +145,9 @@ function checkToolCallLeak<T>(parsed: T): T {
   return parsed;
 }
 
-interface ChatCompletionChunkLike {
-  choices?: Array<{ delta?: { content?: string } }>;
-}
-
 function parseChunk(line: string): string | undefined {
   try {
-    const chunk = parseJsonText<ChatCompletionChunkLike>(line.replace(/^data: /, ""));
+    const chunk = parseJsonText<ChatCompletionChunk>(line.replace(/^data: /, ""));
     return chunk.choices?.[0]?.delta?.content ?? undefined;
   } catch {
     return undefined;
@@ -186,7 +185,7 @@ export async function* ask(
 ): AsyncGenerator<string> {
   validateResponseFormat(options.responseFormat);
   const headers = { Authorization: `Bearer ${client.token}` };
-  const payload: JsonObject = { model: MODEL, messages, stream: true };
+  const payload: ChatCompletionRequest = { model: MODEL, messages, stream: true };
   if (options.responseFormat !== undefined) payload.response_format = options.responseFormat;
 
   const response = await client.http.post(client.llmUrl, { headers, json: payload });
@@ -207,6 +206,16 @@ export async function* ask(
   }
 }
 
+export interface AskJsonOptions<T> extends AskOptions {
+  /**
+   * Checks (and narrows to) `T` instead of trusting an unchecked cast — e.g. a
+   * hand-written type guard, or `(v) => mySchema.parse(v)` from a validation
+   * library of your choice. Without it, the result is cast to `T` unchecked,
+   * as before.
+   */
+  parse?: (value: unknown) => T;
+}
+
 /**
  * Ask the Diffbot LLM and return the answer parsed as JSON. With `schema` (a JSON Schema
  * object) the model is constrained to it by grammar; without one it falls back to
@@ -216,10 +225,11 @@ export async function askJson<T = unknown>(
   client: DiffbotClient,
   messages: ChatMessage[],
   schema?: JsonObject,
-  options: AskOptions = {},
+  options: AskJsonOptions<T> = {},
 ): Promise<T> {
   const responseFormat = resolveFormat(schema, options.responseFormat);
   let text = "";
   for await (const chunk of ask(client, messages, { responseFormat })) text += chunk;
-  return checkToolCallLeak(extractJson(text)) as T;
+  const parsed = checkToolCallLeak(extractJson(text));
+  return options.parse ? options.parse(parsed) : (parsed as T);
 }
