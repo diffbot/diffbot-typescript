@@ -1,0 +1,212 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Account API",
+    "description": "Returns account plan, usage, child tokens, and other account details.",
+    "termsOfService": "https://www.diffbot.com/terms/",
+    "contact": {
+      "email": "support@diffbot.com"
+    },
+    "version": "1.1"
+  },
+  "servers": [
+    {
+      "url": "https://api.diffbot.com/v4"
+    }
+  ],
+  "paths": {
+    "/account": {
+      "get": {
+        "summary": "Get Account Details",
+        "description": "Returns account plan, usage, child tokens, and other account details.",
+        "operationId": "account",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Pass the number of days (`&days=365`) for which you would like to retrieve API call volumes (default = 31).",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful API Response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "created": "2020-04-22",
+                  "usage": [
+                    {
+                      "date": "2022-05-04",
+                      "subtitles": 0,
+                      "nlp": 0,
+                      "entities": 10,
+                      "credits": 258,
+                      "refresh": 0,
+                      "proxies": 0,
+                      "videos": 0,
+                      "extractions": 8,
+                      "facets": 0
+                    },
+                    {
+                      "date": "2022-05-03",
+                      "subtitles": 0,
+                      "nlp": 0,
+                      "entities": 75,
+                      "credits": 1875,
+                      "refresh": 0,
+                      "proxies": 0,
+                      "videos": 0,
+                      "extractions": 0,
+                      "facets": 0
+                    }
+                  ],
+                  "name": "Diffy",
+                  "childTokens": [
+                    "xxxx",
+                    "xxxx"
+                  ],
+                  "plan": "diffy-plans-to-hangout-all-day",
+                  "email": "sales@diffbot.com",
+                  "token": "xxxx",
+                  "status": "active"
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Name associated with the token."
+                    },
+                    "email": {
+                      "type": "string",
+                      "description": "Email address associated with the token."
+                    },
+                    "plan": {
+                      "type": "string",
+                      "description": "Current plan for the token."
+                    },
+                    "planCredits": {
+                      "type": "integer",
+                      "description": "Amount of monthly calls included."
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "Status of the token."
+                    },
+                    "created": {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    "token": {
+                      "type": "string"
+                    },
+                    "childTokens": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "List of child or sub-tokens, if there are any associated with your account."
+                    },
+                    "usage": {
+                      "type": "array",
+                      "description": "An array of days and call volume amounts for each day. By default this will return data from the most recent 31 days. Use the `days` argument to adjust the response window. Dates prior to token becoming active will not be returned.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": {
+                            "type": "string",
+                            "format": "date",
+                            "description": "Date, e.g. `2019-12-01`."
+                          },
+                          "nlp": {
+                            "type": "integer",
+                            "description": "Total number of Natural Language API calls made."
+                          },
+                          "credits": {
+                            "type": "integer",
+                            "description": "Total number of credits consumed."
+                          },
+                          "extractions": {
+                            "type": "integer",
+                            "description": "Total number of Extraction API calls made."
+                          },
+                          "proxies": {
+                            "type": "integer",
+                            "description": "Total number of calls made using proxy servers. [Read more](/docs/extract/using-proxies)."
+                          },
+                          "entities": {
+                            "type": "integer",
+                            "description": "Total number of entities downloaded from the Diffbot Knowledge Graph."
+                          },
+                          "refresh": {
+                            "type": "integer",
+                            "description": "Total number of entity refreshes requested."
+                          },
+                          "facets": {
+                            "type": "integer",
+                            "description": "Total number of facet values returned."
+                          },
+                          "videos": {
+                            "type": "integer",
+                            "description": "Total number of videos downloaded."
+                          },
+                          "subtitles": {
+                            "type": "integer",
+                            "description": "Total number of subtitles requested."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "example": {
+                  "errorCode": 401,
+                  "error": "Not authorized API token."
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errorCode": {
+                      "type": "integer",
+                      "example": 401
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "Not authorized API token."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "tokenscheme": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "tokenscheme": {
+        "type": "apiKey",
+        "name": "token",
+        "in": "query",
+        "description": "Your Diffbot API token."
+      }
+    }
+  }
+}

@@ -36,8 +36,10 @@
     "test:watch": "vitest",
     "test:live": "vitest run --config vitest.live.config.ts",
     "test:coverage": "vitest run --coverage --coverage.include='src/**'",
+    "test:types": "vitest run --typecheck",
     "typecheck": "tsc --noEmit",
-    "postbuild": "node scripts/assert-no-node-builtins.mjs"
+    "postbuild": "node scripts/assert-no-node-builtins.mjs",
+    "gen:types": "node scripts/gen-types.mjs"
   },
   "keywords": [
     "diffbot",
@@ -65,6 +67,7 @@
   "devDependencies": {
     "@types/node": "^22.15.21",
     "@vitest/coverage-v8": "^3.2.6",
+    "openapi-typescript": "^7.13.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.3",
     "vitest": "^3.2.1"

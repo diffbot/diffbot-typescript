@@ -1,0 +1,719 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "description": "Extracts entities (e.g., people, organizations, locations) and facts (e.g., educated at, founded by) about these entities from natural language text.\n",
+        "version": "1.0.0",
+        "title": "Natural Language API",
+        "termsOfService": "https://www.diffbot.com/terms/",
+        "contact": {
+            "email": "support@diffbot.com"
+        }
+    },
+    "paths": {
+        "/v1/": {
+            "post": {
+                "tags": [
+                    "Natural Language"
+                ],
+                "summary": "Process Text",
+                "parameters": [
+                    {
+                        "name": "fields",
+                        "in": "query",
+                        "description": "Attributes to include in response",
+                        "required": false,
+                        "style": "form",
+                        "explode": false,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": [
+                                    "entities",
+                                    "sentiment",
+                                    "facts",
+                                    "records",
+                                    "categories",
+                                    "sentences",
+                                    "language",
+                                    "summary"
+                                ]
+                            },
+                            "uniqueItems": true,
+                            "default": [
+                                "entities",
+                                "sentiment",
+                                "facts",
+                                "records",
+                                "sentences"
+                            ]
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DocumentArray"
+                            }
+                        },
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DocumentArray"
+                            }
+                        }
+                    },
+                    "description": "documents to be processed",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NaturalLanguageResponseArray"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "DiffbotToken": []
+                    }
+                ]
+            }
+        }
+    },
+    "servers": [
+        {
+            "url": "https://nl.diffbot.com"
+        }
+    ],
+    "components": {
+        "securitySchemes": {
+            "DiffbotToken": {
+                "type": "apiKey",
+                "name": "token",
+                "in": "query"
+            }
+        },
+        "schemas": {
+            "Document": {
+                "type": "object",
+                "required": [
+                    "content"
+                ],
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "format": "blob",
+                        "description": "The text you'd like Diffbot Natural Language to process. \n",
+                        "minLength": 1,
+                        "maxLength": 100000
+                    },
+                    "lang": {
+                        "type": "string",
+                        "description": "Language of the text specified as an [ISO 639-1 code](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes). Review our supported languages for more information.\n",
+                        "default": "auto"
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "`plain text` for free text. `plain text with title` includes a title separated from the body by two line breaks (e.g. \"This is a title\\n\\nThis is the body\").\n",
+                        "default": "plain text",
+                        "enum": [
+                            "plain text",
+                            "plain text with title"
+                        ]
+                    },
+                    "documentType": {
+                        "type": "string",
+                        "description": "Optional. Provides context to the model and may produce better results.\n",
+                        "enum": [
+                            "organization bio",
+                            "person bio",
+                            "news article",
+                            "address",
+                            "discussion"
+                        ]
+                    },
+                    "customSummary": {
+                        "$ref": "#/components/schemas/CustomSummary"
+                    }
+                },
+                "example": {
+                    "content": "Diffbot is a startup based in Menlo Park."
+                }
+            },
+            "DocumentArray": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/components/schemas/Document"
+                },
+                "example": [
+                    {
+                        "content": "Diffbot is a startup based in Menlo Park."
+                    }
+                ]
+            },
+            "EntityWithMentions": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "diffbotUri": {
+                        "type": "string"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "salience": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "sentiment": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "allUris": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "allTypes": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/EntityType"
+                        }
+                    },
+                    "mentions": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Mention"
+                        }
+                    },
+                    "location": {
+                        "$ref": "#/components/schemas/Location"
+                    }
+                }
+            },
+            "Mention": {
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string"
+                    },
+                    "beginOffset": {
+                        "type": "integer"
+                    },
+                    "endOffset": {
+                        "type": "integer"
+                    },
+                    "isPronoun": {
+                        "type": "boolean"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "format": "float"
+                    }
+                }
+            },
+            "Entity": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "diffbotUri": {
+                        "type": "string"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "allUris": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "allTypes": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/EntityType"
+                        }
+                    },
+                    "isCustom": {
+                        "type": "boolean"
+                    },
+                    "entityIndex": {
+                        "type": "integer",
+                        "description": "Index of this entity in the field \"entities\" (if requested)"
+                    }
+                }
+            },
+            "Span": {
+                "type": "object",
+                "properties": {
+                    "beginOffset": {
+                        "type": "integer"
+                    },
+                    "endOffset": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "Fact": {
+                "type": "object",
+                "properties": {
+                    "humanReadable": {
+                        "type": "string"
+                    },
+                    "entity": {
+                        "$ref": "#/components/schemas/Entity"
+                    },
+                    "property": {
+                        "$ref": "#/components/schemas/Property"
+                    },
+                    "value": {
+                        "$ref": "#/components/schemas/Entity"
+                    },
+                    "qualifiers": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Qualifier"
+                        }
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "evidence": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Evidence"
+                        }
+                    }
+                }
+            },
+            "Qualifier": {
+                "type": "object",
+                "properties": {
+                    "property": {
+                        "$ref": "#/components/schemas/Property"
+                    },
+                    "value": {
+                        "$ref": "#/components/schemas/Qualifier_value"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "format": "float"
+                    }
+                },
+                "description": "https://demo.nl.diffbot.com/schema/#qualifiers"
+            },
+            "Property": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "diffbotUri": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    }
+                },
+                "description": "https://demo.nl.diffbot.com/schema/#properties"
+            },
+            "EntityType": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "diffbotUri": {
+                        "type": "string"
+                    },
+                    "dbpediaUri": {
+                        "type": "string"
+                    }
+                },
+                "description": "https://demo.nl.diffbot.com/schema/#types"
+            },
+            "Evidence": {
+                "type": "object",
+                "properties": {
+                    "passage": {
+                        "type": "string",
+                        "description": "One or more sentences where the fact was extracted from"
+                    },
+                    "entityMentions": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Mention"
+                        }
+                    },
+                    "valueMentions": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Mention"
+                        }
+                    }
+                }
+            },
+            "Location": {
+                "type": "object",
+                "properties": {
+                    "latitude": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "longitude": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "precision": {
+                        "type": "number",
+                        "format": "float"
+                    }
+                }
+            },
+            "Category": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "path": {
+                        "type": "string"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "isPrimary": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "Categorization": {
+                "type": "object",
+                "properties": {
+                    "iabv1": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Category"
+                        }
+                    },
+                    "iabv2": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Category"
+                        }
+                    },
+                    "diffbot": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Category"
+                        }
+                    }
+                },
+                "description": "https://demo.nl.diffbot.com/schema/#categories"
+            },
+            "CustomSummary": {
+                "type": "object",
+                "properties": {
+                    "maxNumberOfSentences": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "Maximum number of sentences for the generated summary.",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "default": 3
+                    }
+                },
+                "description": "Define custom parameters for summary generation."
+            },
+            "NaturalLanguageResponse": {
+                "type": "object",
+                "properties": {
+                    "errors": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "entities": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/EntityWithMentions"
+                        }
+                    },
+                    "sentiment": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "facts": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Fact"
+                        }
+                    },
+                    "records": {
+                        "type": "array",
+                        "description": "Array of entities with attributes extracted from inputDocument according to the KG schema (https://docs.diffbot.com/docs/ontology)",
+                        "items": {
+                            "type": "object",
+                            "properties": {}
+                        }
+                    },
+                    "categories": {
+                        "$ref": "#/components/schemas/Categorization"
+                    },
+                    "sentences": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Span"
+                        }
+                    },
+                    "language": {
+                        "type": "string",
+                        "description": "Language of the text specified as an [ISO 639-1 code](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)."
+                    },
+                    "summary": {
+                        "type": "string",
+                        "description": "Generated summary."
+                    }
+                }
+            },
+            "NaturalLanguageResponseArray": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/components/schemas/NaturalLanguageResponse"
+                },
+                "example": [
+                    {
+                        "sentiment": 0,
+                        "entities": [
+                            {
+                                "name": "Diffbot",
+                                "diffbotUri": "https://diffbot.com/entity/EYX1i02YVPsuT7fPLUYgRhQ",
+                                "confidence": 0.99898225,
+                                "salience": 0.95394653,
+                                "sentiment": 0,
+                                "isCustom": false,
+                                "allUris": [
+                                    "http://www.wikidata.org/entity/Q17052069"
+                                ],
+                                "allTypes": [
+                                    {
+                                        "name": "organization",
+                                        "diffbotUri": "https://diffbot.com/entity/EN1ClYEdMMQCxB6AWTkT3mA",
+                                        "dbpediaUri": "http://dbpedia.org/ontology/Organisation"
+                                    }
+                                ],
+                                "mentions": [
+                                    {
+                                        "text": "Diffbot",
+                                        "beginOffset": 0,
+                                        "endOffset": 7,
+                                        "confidence": 0.99898225
+                                    }
+                                ],
+                                "location": {
+                                    "latitude": 37.456104,
+                                    "longitude": -122.1763,
+                                    "precision": 0.1
+                                }
+                            },
+                            {
+                                "name": "Menlo Park",
+                                "diffbotUri": "https://diffbot.com/entity/EQiAUr370NpW1gvx-V4fTrQ",
+                                "confidence": 0.9996269,
+                                "salience": 0.9082091,
+                                "sentiment": 0,
+                                "isCustom": false,
+                                "allUris": [
+                                    "http://www.wikidata.org/entity/Q74195"
+                                ],
+                                "allTypes": [
+                                    {
+                                        "name": "location",
+                                        "diffbotUri": "https://diffbot.com/entity/EiCyWUm4lNziqgLHx47iAIQ",
+                                        "dbpediaUri": "http://dbpedia.org/ontology/Place"
+                                    },
+                                    {
+                                        "name": "administrative area",
+                                        "diffbotUri": "https://diffbot.com/entity/EcTIu1tWKPouIa6qZtSpc4A",
+                                        "dbpediaUri": "http://dbpedia.org/ontology/PopulatedPlace"
+                                    },
+                                    {
+                                        "name": "city",
+                                        "diffbotUri": "https://diffbot.com/entity/EzdJrGHiyMWu0XbSn101rFA",
+                                        "dbpediaUri": "http://dbpedia.org/ontology/City"
+                                    }
+                                ],
+                                "mentions": [
+                                    {
+                                        "text": "Menlo Park",
+                                        "beginOffset": 30,
+                                        "endOffset": 40,
+                                        "confidence": 0.9996269
+                                    }
+                                ],
+                                "location": {
+                                    "latitude": 37.454166,
+                                    "longitude": -122.17861,
+                                    "precision": 6.708204
+                                }
+                            },
+                            {
+                                "name": "startup company",
+                                "diffbotUri": "https://diffbot.com/entity/EfX0EeXroOmaXrLe-SylIuw",
+                                "confidence": 0.81958973,
+                                "salience": 0.6474858,
+                                "sentiment": 0,
+                                "isCustom": false,
+                                "allUris": [],
+                                "mentions": [
+                                    {
+                                        "text": "startup",
+                                        "beginOffset": 13,
+                                        "endOffset": 20,
+                                        "confidence": 0.81958973
+                                    }
+                                ]
+                            }
+                        ],
+                        "facts": [
+                            {
+                                "humanReadable": "[Diffbot] headquarters [Menlo Park]",
+                                "entity": {
+                                    "name": "Diffbot",
+                                    "diffbotUri": "https://diffbot.com/entity/EYX1i02YVPsuT7fPLUYgRhQ",
+                                    "confidence": 0.99898225,
+                                    "allUris": [
+                                        "http://www.wikidata.org/entity/Q17052069"
+                                    ],
+                                    "allTypes": [
+                                        {
+                                            "name": "organization",
+                                            "diffbotUri": "https://diffbot.com/entity/EN1ClYEdMMQCxB6AWTkT3mA",
+                                            "dbpediaUri": "http://dbpedia.org/ontology/Organisation"
+                                        }
+                                    ],
+                                    "isCustom": false,
+                                    "entityIndex": 1
+                                },
+                                "property": {
+                                    "name": "headquarters",
+                                    "diffbotUri": "https://docs.diffbot.com/docs/ont-organization#location"
+                                },
+                                "value": {
+                                    "name": "Menlo Park",
+                                    "diffbotUri": "https://diffbot.com/entity/EQiAUr370NpW1gvx-V4fTrQ",
+                                    "confidence": 0.9996269,
+                                    "allUris": [
+                                        "http://www.wikidata.org/entity/Q74195"
+                                    ],
+                                    "allTypes": [
+                                        {
+                                            "name": "location",
+                                            "diffbotUri": "https://diffbot.com/entity/EiCyWUm4lNziqgLHx47iAIQ",
+                                            "dbpediaUri": "http://dbpedia.org/ontology/Place"
+                                        },
+                                        {
+                                            "name": "administrative area",
+                                            "diffbotUri": "https://diffbot.com/entity/EcTIu1tWKPouIa6qZtSpc4A",
+                                            "dbpediaUri": "http://dbpedia.org/ontology/PopulatedPlace"
+                                        },
+                                        {
+                                            "name": "city",
+                                            "diffbotUri": "https://diffbot.com/entity/EzdJrGHiyMWu0XbSn101rFA",
+                                            "dbpediaUri": "http://dbpedia.org/ontology/City"
+                                        }
+                                    ],
+                                    "isCustom": false,
+                                    "entityIndex": 0
+                                },
+                                "qualifiers": [
+                                    {
+                                        "property": {
+                                            "name": "is current"
+                                        },
+                                        "value": {
+                                            "name": "true"
+                                        },
+                                        "confidence": 0
+                                    }
+                                ],
+                                "confidence": 0.95,
+                                "evidence": [
+                                    {
+                                        "passage": "Diffbot is a startup based in Menlo Park.",
+                                        "entityMentions": [
+                                            {
+                                                "text": "Diffbot",
+                                                "beginOffset": 0,
+                                                "endOffset": 7,
+                                                "confidence": 0.99898225
+                                            }
+                                        ],
+                                        "valueMentions": [
+                                            {
+                                                "text": "Menlo Park",
+                                                "beginOffset": 30,
+                                                "endOffset": 40,
+                                                "confidence": 0.9996269
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            "ErrorResponse": {
+                "type": "object",
+                "properties": {
+                    "messages": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "Qualifier_value": {
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "diffbotUri": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}
