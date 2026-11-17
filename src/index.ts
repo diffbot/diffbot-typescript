@@ -1,5 +1,6 @@
 export { DiffbotClient, type DiffbotClientOptions } from "./client.js";
 export { resolveTokenFromEnv, type TokenSource } from "./auth.js";
+export { account, verifyToken, type AccountOptions } from "./account.js";
 export { extract } from "./extract.js";
 export {
   ANY_OBJECT_SCHEMA,
@@ -58,6 +59,7 @@ export type { JsonObject } from "./json.js";
 // Response/shared types (generated-backed where a spec defines a schema; hand-written
 // in src/types/undocumented.ts otherwise — see that file's header for which is which).
 export type { DqlEntity, DqlResponse, DqlRewrite, ExportFormat } from "./types/dql.js";
+export type { AccountResponse, AccountUsage } from "./types/account.js";
 export type { NaturalLanguageResponse, NlpDocument, NlpField } from "./types/natural-language.js";
 export type { WebSearchResponse, WebSearchResult } from "./types/web-search.js";
 export type {
