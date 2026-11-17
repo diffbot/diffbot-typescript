@@ -56,3 +56,35 @@ describe("extract() overloads", () => {
     >();
   });
 });
+
+describe("extract() options", () => {
+  it("types fields per API", () => {
+    void extract(db, "u", "article", "json", { fields: ["links", "quotes"] });
+    // @ts-expect-error -- "quotes" is an article-only field.
+    void extract(db, "u", "product", "json", { fields: ["quotes"] });
+    // @ts-expect-error -- fields is a list, not a comma-joined string.
+    void extract(db, "u", "article", "json", { fields: "links,meta" });
+  });
+
+  it("rejects options that belong to another API", () => {
+    // @ts-expect-error -- `paging` is not an option of the product API.
+    void extract(db, "u", "product", "json", { paging: true });
+    // @ts-expect-error -- `callback` (JSONP) is intentionally not exposed.
+    void extract(db, "u", "article", "json", { callback: "cb" });
+  });
+
+  it("rejects named options in extra but allows proxy/proxyAuth", () => {
+    void extract(db, "u", "article", "json", { extra: { proxy: "h:1", proxyAuth: "u:p" } });
+    // @ts-expect-error -- `timeout` is a named option.
+    void extract(db, "u", "article", "json", { extra: { timeout: "1" } });
+  });
+
+  it("keeps the return type per API with options", () => {
+    expectTypeOf(extract(db, "u", "article", "json", { timeout: 1 })).resolves.toEqualTypeOf<
+      ExtractResponse<ArticleObject>
+    >();
+    expectTypeOf(extract(db, "u", undefined, undefined, { mode: "article" })).resolves.toEqualTypeOf<
+      ExtractResponse<AnalyzeObject>
+    >();
+  });
+});

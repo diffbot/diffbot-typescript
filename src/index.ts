@@ -1,7 +1,20 @@
 export { DiffbotClient, type DiffbotClientOptions } from "./client.js";
 export { resolveTokenFromEnv, type TokenSource } from "./auth.js";
 export { account, verifyToken, type AccountOptions } from "./account.js";
-export { extract } from "./extract.js";
+export {
+  extract,
+  type AnalyzeExtractOptions,
+  type ArticleExtractOptions,
+  type CustomExtractOptions,
+  type DiscussionExtractOptions,
+  type EventExtractOptions,
+  type ExtractOptions,
+  type ImageExtractOptions,
+  type JobExtractOptions,
+  type ListExtractOptions,
+  type ProductExtractOptions,
+  type VideoExtractOptions,
+} from "./extract.js";
 export {
   ANY_OBJECT_SCHEMA,
   RESPONSE_FORMAT_TYPES,

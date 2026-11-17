@@ -119,6 +119,11 @@ export class HttpClient {
     this.retryPolicy = retry === false ? null : resolveRetryPolicy(retry);
   }
 
+  /** The client-level request timeout (ms), used when a call does not set its own. */
+  get defaultTimeout(): number {
+    return this.timeoutMs;
+  }
+
   async get(url: string, options: HttpRequestOptions = {}): Promise<Response> {
     return this.request(url, { ...options, method: "GET" });
   }
