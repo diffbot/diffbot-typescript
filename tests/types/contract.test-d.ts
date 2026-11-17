@@ -15,6 +15,8 @@ import type {
 } from "../../src/extract.js";
 import type { operations as AccountOps } from "../../src/generated/account.js";
 import type { operations as CrawlOps } from "../../src/generated/crawl.js";
+import type { components as DqlComponents } from "../../src/generated/dql.js";
+import type { DqlOptions } from "../../src/kg.js";
 import type { operations as ExtractOps } from "../../src/generated/extract.js";
 
 /*
@@ -23,7 +25,6 @@ import type { operations as ExtractOps } from "../../src/generated/extract.js";
  * added to a spec (after `pnpm gen:types`) fails here until it is named or consciously
  * allow-listed; a name that is not in the spec fails too. `extra` is not a wire key.
  *
- * Only S1 operations are covered. DQL's named params arrive in S2.
  */
 
 type Named<O> = Exclude<keyof O & string, "extra">;
@@ -34,6 +35,13 @@ type SpecKeys<Q> = keyof NonNullable<Q> & string;
 //   callback     JSONP, pointless for an SDK (plan §6)
 //   proxy, proxyAuth  credential-bearing and niche; typed `extra` only
 type ExtractUnnamed = "url" | "callback" | "proxy" | "proxyAuth";
+
+// DQL (POST body, `DqlPostRequest`):
+//   query    positional argument of dql()
+//   report   DQL coverage reports are out of scope (plan §2); reachable via `extra`
+//   view     same as report
+// `raw` is SDK-only (not on the wire) and is excluded below.
+type DqlUnnamed = "query" | "report" | "view";
 
 describe("spec <-> named option contract", () => {
   it("extract: analyze", () => {
@@ -87,6 +95,12 @@ describe("spec <-> named option contract", () => {
     // `name` is the positional job name.
     expectTypeOf<Named<CrawlDownloadOptions> | "name">().toEqualTypeOf<
       SpecKeys<CrawlOps["retrieve-crawl-job-data"]["parameters"]["query"]>
+    >();
+  });
+
+  it("dql", () => {
+    expectTypeOf<Named<Omit<DqlOptions, "raw">> | DqlUnnamed>().toEqualTypeOf<
+      keyof DqlComponents["schemas"]["DqlPostRequest"] & string
     >();
   });
 });

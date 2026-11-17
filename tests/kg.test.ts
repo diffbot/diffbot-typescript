@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DiffbotClient, dql, dqlFetchOntologyText, dqlParallel } from "../src/index.js";
+import { DiffbotClient, ValidationError, dql, dqlFetchOntologyText, dqlParallel } from "../src/index.js";
 import { createMockFetch, jsonResponse } from "./helpers/mock-fetch.js";
 
 function bodyOf(req: { body?: string }): Record<string, unknown> {
@@ -144,6 +144,63 @@ describe("dql", () => {
       }),
     });
     await dql(db, "type:Organization");
+  });
+});
+
+describe("dql named params", () => {
+  it("places every named param in the JSON body and keeps the token in the query", async () => {
+    const db = makeClient((req) => {
+      expect(req.params.get("token")).toBe("test-token");
+      expect(req.params.has("type")).toBe(false);
+      expect(bodyOf(req)).toEqual({
+        query: "q",
+        size: 10,
+        type: "crawl",
+        col: "my-crawl",
+        filterExclude: "x",
+        exportseparator: ";",
+        exportfile: "out.csv",
+        jsonmode: "id",
+        nonCanonicalFacts: true,
+        noDedupArticles: false,
+        cluster: "all",
+        report: "true",
+      });
+      return jsonResponse({ data: [] });
+    });
+    await dql(db, "q", {
+      type: "crawl",
+      col: "my-crawl",
+      filterExclude: "x",
+      exportseparator: ";",
+      exportfile: "out.csv",
+      jsonmode: "id",
+      nonCanonicalFacts: true,
+      noDedupArticles: false,
+      cluster: "all",
+      extra: { report: "true" },
+    });
+  });
+
+  it("omits unset named params (defaults unchanged)", async () => {
+    const db = makeClient((req) => {
+      expect(bodyOf(req)).toEqual({ query: "q", size: 10 });
+      return jsonResponse({ data: [] });
+    });
+    await dql(db, "q", { type: undefined, col: undefined, nonCanonicalFacts: undefined });
+  });
+
+  it("raises ValidationError when extra duplicates a named param, without sending", async () => {
+    let called = false;
+    const db = makeClient(() => {
+      called = true;
+      return jsonResponse({});
+    });
+    const bad = { extra: { type: "text" } } as unknown as Parameters<typeof dql>[2];
+    await expect(dql(db, "q", bad)).rejects.toBeInstanceOf(ValidationError);
+    const bad2 = { size: 5, extra: { size: "7" } } as unknown as Parameters<typeof dql>[2];
+    await expect(dql(db, "q", bad2)).rejects.toBeInstanceOf(ValidationError);
+    expect(called).toBe(false);
   });
 });
 

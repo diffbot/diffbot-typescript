@@ -47,6 +47,7 @@ export {
   dqlFetchOntologyText,
   dqlParallel,
   type DqlOptions,
+  type DqlType,
 } from "./kg.js";
 export { entities, type EntitiesResponse } from "./nlp.js";
 export { Ontology } from "./ontology.js";

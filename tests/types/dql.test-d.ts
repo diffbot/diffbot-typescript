@@ -32,6 +32,14 @@ describe("dql() format overloads", () => {
     void dql(db, "type:Organization", { extra: { size: "5" } });
   });
 
+  it("types the new named params and rejects them in extra", () => {
+    expectTypeOf<DqlOptions["type"]>().toEqualTypeOf<"query" | "text" | "queryTextFallback" | "crawl" | undefined>();
+    // @ts-expect-error -- "col" is a named option now.
+    void dql(db, "q", { extra: { col: "x" } });
+    // report/view stay reachable through extra.
+    void dql(db, "q", { extra: { report: "true", view: "v" } });
+  });
+
   it("dqlParallel maps each query's own format to its own result type", async () => {
     const results = await dqlParallel(db, [
       { query: "a" },
@@ -47,7 +55,22 @@ describe("dql() format overloads", () => {
 describe("dql() public contract is unchanged by the GET -> POST switch", () => {
   it("keeps the same option keys (no `method` option, no `dqlPost`)", () => {
     expectTypeOf<keyof DqlOptions>().toEqualTypeOf<
-      "size" | "from" | "format" | "filter" | "exportspec" | "extra" | "raw"
+      | "size"
+      | "from"
+      | "format"
+      | "filter"
+      | "exportspec"
+      | "extra"
+      | "raw"
+      | "type"
+      | "col"
+      | "filterExclude"
+      | "exportseparator"
+      | "exportfile"
+      | "jsonmode"
+      | "nonCanonicalFacts"
+      | "noDedupArticles"
+      | "cluster"
     >();
     expectTypeOf<"dqlPost" extends keyof typeof publicApi ? true : false>().toEqualTypeOf<false>();
   });
