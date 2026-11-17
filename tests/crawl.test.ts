@@ -42,6 +42,78 @@ describe("crawl", () => {
     expect(params!.get("seeds")).toBe("https://example.com");
   });
 
+  it("sends the named create options as query params", async () => {
+    let params: URLSearchParams | undefined;
+    const db = makeClient((req) => {
+      params = req.params;
+      return jsonResponse({ jobs: [{ name: "test-job" }] });
+    });
+    await crawl(db, "https://example.com", {
+      jobName: "test-job",
+      urlCrawlRegEx: "^https://example\\.com/a",
+      urlProcessRegEx: "/p/",
+      pageProcessPattern: "In stock",
+      maxToCrawlPerSubdomain: 50,
+      maxToProcessPerSubdomain: 0,
+      useCanonical: false,
+      notifyWebhook: "https://hooks.example/x",
+      notifyEmail: "me@example.com",
+    }).next();
+    expect(params!.get("urlCrawlRegEx")).toBe("^https://example\\.com/a");
+    expect(params!.get("urlProcessRegEx")).toBe("/p/");
+    expect(params!.get("pageProcessPattern")).toBe("In stock");
+    expect(params!.get("maxToCrawlPerSubdomain")).toBe("50");
+    expect(params!.get("maxToProcessPerSubdomain")).toBe("0");
+    expect(params!.get("useCanonical")).toBe("0");
+    expect(params!.get("notifyWebhook")).toBe("https://hooks.example/x");
+    expect(params!.get("notifyEmail")).toBe("me@example.com");
+  });
+
+  it("omits the new options when unset", async () => {
+    let params: URLSearchParams | undefined;
+    const db = makeClient((req) => {
+      params = req.params;
+      return jsonResponse({ jobs: [{ name: "test-job" }] });
+    });
+    await crawl(db, "https://example.com", { jobName: "test-job" }).next();
+    for (const key of ["urlCrawlRegEx", "useCanonical", "notifyEmail", "customHeaders", "maxToCrawlPerSubdomain"]) {
+      expect(params!.has(key)).toBe(false);
+    }
+  });
+
+  it("sends a single customHeaders string once", async () => {
+    let params: URLSearchParams | undefined;
+    const db = makeClient((req) => {
+      params = req.params;
+      return jsonResponse({ jobs: [{ name: "test-job" }] });
+    });
+    await crawl(db, "https://example.com", { jobName: "test-job", customHeaders: "Accept-Language:en-us" }).next();
+    expect(params!.getAll("customHeaders")).toEqual(["Accept-Language:en-us"]);
+  });
+
+  it("sends customHeaders arrays as repeated params", async () => {
+    let params: URLSearchParams | undefined;
+    const db = makeClient((req) => {
+      params = req.params;
+      return jsonResponse({ jobs: [{ name: "test-job" }] });
+    });
+    await crawl(db, "https://example.com", {
+      jobName: "test-job",
+      customHeaders: ["Accept-Language:en-us", "X-Test:1"],
+    }).next();
+    expect(params!.getAll("customHeaders")).toEqual(["Accept-Language:en-us", "X-Test:1"]);
+  });
+
+  it("omits customHeaders for an empty array", async () => {
+    let params: URLSearchParams | undefined;
+    const db = makeClient((req) => {
+      params = req.params;
+      return jsonResponse({ jobs: [{ name: "test-job" }] });
+    });
+    await crawl(db, "https://example.com", { jobName: "test-job", customHeaders: [] }).next();
+    expect(params!.has("customHeaders")).toBe(false);
+  });
+
   it("normalizes the url", async () => {
     let seeds = "";
     const db = makeClient((req) => {

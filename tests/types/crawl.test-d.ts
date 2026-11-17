@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it } from "vitest";
-import { DiffbotClient, crawlDownload, crawlGetJob, crawlListJobs } from "../../src/index.js";
+import { DiffbotClient, crawlDownload, crawlGetJob, crawlListJobs, type CrawlOptions } from "../../src/index.js";
 import type { CrawlDataRecord, CrawlJob } from "../../src/types/undocumented.js";
 
 declare const db: DiffbotClient;
@@ -23,5 +23,11 @@ describe("crawlDownload overloads", () => {
   it("returns a string for format: csv and for the CSV-only URL report", () => {
     expectTypeOf(crawlDownload(db, "n", { format: "csv" })).resolves.toEqualTypeOf<string>();
     expectTypeOf(crawlDownload(db, "n", { type: "urls" })).resolves.toEqualTypeOf<string>();
+  });
+});
+
+describe("crawl() customHeaders", () => {
+  it("accepts a string or a readonly string array", () => {
+    expectTypeOf<CrawlOptions["customHeaders"]>().toEqualTypeOf<string | readonly string[] | undefined>();
   });
 });

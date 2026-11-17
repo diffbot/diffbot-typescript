@@ -32,7 +32,20 @@ export interface CrawlOptions {
   urlProcessPattern?: string;
   obeyRobots?: boolean;
   useProxies?: boolean;
-  customHeaders?: string;
+  /** One `Name:value` header, or several; each is sent as its own repeated `customHeaders` param. */
+  customHeaders?: string | readonly string[];
+  /** Regex counterpart of `urlCrawlPattern`. */
+  urlCrawlRegEx?: string;
+  /** Regex counterpart of `urlProcessPattern`. */
+  urlProcessRegEx?: string;
+  /** Only pages whose HTML contains this string are processed. */
+  pageProcessPattern?: string;
+  maxToCrawlPerSubdomain?: number;
+  maxToProcessPerSubdomain?: number;
+  /** `false` sends `useCanonical=0` (disables canonical-link deduplication). Server default is on. */
+  useCanonical?: boolean;
+  notifyWebhook?: string;
+  notifyEmail?: string;
   watch?: boolean;
   pollInterval?: number;
 }
@@ -42,9 +55,22 @@ function buildCrawlParams(
   jobName: string,
   site: string,
   options: Required<Pick<CrawlOptions, "maxToCrawl" | "maxToProcess" | "hops" | "restrictDomain" | "apiUrl" | "crawlDelay" | "obeyRobots" | "useProxies">> &
-    Pick<CrawlOptions, "urlCrawlPattern" | "urlProcessPattern" | "customHeaders">,
+    Pick<
+      CrawlOptions,
+      | "urlCrawlPattern"
+      | "urlProcessPattern"
+      | "customHeaders"
+      | "urlCrawlRegEx"
+      | "urlProcessRegEx"
+      | "pageProcessPattern"
+      | "maxToCrawlPerSubdomain"
+      | "maxToProcessPerSubdomain"
+      | "useCanonical"
+      | "notifyWebhook"
+      | "notifyEmail"
+    >,
 ) {
-  const params: Record<string, string | number> = {
+  const params: Record<string, string | number | readonly string[]> = {
     token: client.token,
     name: jobName,
     seeds: site,
@@ -59,7 +85,21 @@ function buildCrawlParams(
   if (options.urlProcessPattern) params.urlProcessPattern = options.urlProcessPattern;
   if (options.obeyRobots) params.obeyRobots = 1;
   if (options.useProxies) params.useProxies = 1;
-  if (options.customHeaders) params.customHeaders = options.customHeaders;
+  if (options.urlCrawlRegEx) params.urlCrawlRegEx = options.urlCrawlRegEx;
+  if (options.urlProcessRegEx) params.urlProcessRegEx = options.urlProcessRegEx;
+  if (options.pageProcessPattern) params.pageProcessPattern = options.pageProcessPattern;
+  if (options.maxToCrawlPerSubdomain !== undefined) params.maxToCrawlPerSubdomain = options.maxToCrawlPerSubdomain;
+  if (options.maxToProcessPerSubdomain !== undefined) {
+    params.maxToProcessPerSubdomain = options.maxToProcessPerSubdomain;
+  }
+  if (options.useCanonical !== undefined) params.useCanonical = options.useCanonical ? 1 : 0;
+  if (options.notifyWebhook) params.notifyWebhook = options.notifyWebhook;
+  if (options.notifyEmail) params.notifyEmail = options.notifyEmail;
+  if (typeof options.customHeaders === "string") {
+    if (options.customHeaders) params.customHeaders = options.customHeaders;
+  } else if (options.customHeaders?.length) {
+    params.customHeaders = options.customHeaders;
+  }
   return params;
 }
 
@@ -158,6 +198,14 @@ export async function* crawl(
     obeyRobots: options.obeyRobots ?? false,
     useProxies: options.useProxies ?? false,
     customHeaders: options.customHeaders,
+    urlCrawlRegEx: options.urlCrawlRegEx,
+    urlProcessRegEx: options.urlProcessRegEx,
+    pageProcessPattern: options.pageProcessPattern,
+    maxToCrawlPerSubdomain: options.maxToCrawlPerSubdomain,
+    maxToProcessPerSubdomain: options.maxToProcessPerSubdomain,
+    useCanonical: options.useCanonical,
+    notifyWebhook: options.notifyWebhook,
+    notifyEmail: options.notifyEmail,
   });
 
   const response = await client.http.get(client.crawlerUrl, { params });

@@ -1,6 +1,6 @@
 import { describe, expectTypeOf, it } from "vitest";
 import type { AccountOptions } from "../../src/account.js";
-import type { CrawlDownloadOptions } from "../../src/crawl.js";
+import type { CrawlDownloadOptions, CrawlOptions } from "../../src/crawl.js";
 import type {
   AnalyzeExtractOptions,
   ArticleExtractOptions,
@@ -102,5 +102,29 @@ describe("spec <-> named option contract", () => {
     expectTypeOf<Named<Omit<DqlOptions, "raw">> | DqlUnnamed>().toEqualTypeOf<
       keyof DqlComponents["schemas"]["DqlPostRequest"] & string
     >();
+  });
+
+  it("crawl create: new S2 named options are real spec fields", () => {
+    // crawl() keeps its older, SDK-shaped names (hops, jobName, ...), so this is a subset
+    // check, not equality. Recurring-crawl admin stays out (plan §2/§6):
+    //   repeat, maxRounds, seedRecrawlFrequency, onlyProcessIfNew
+    type CreateBody = CrawlOps["create-a-crawl"]["requestBody"] extends infer R
+      ? NonNullable<R> extends { content: { "application/x-www-form-urlencoded": infer B } }
+        ? keyof B & string
+        : never
+      : never;
+    type S2Named =
+      | "urlCrawlRegEx"
+      | "urlProcessRegEx"
+      | "pageProcessPattern"
+      | "maxToCrawlPerSubdomain"
+      | "maxToProcessPerSubdomain"
+      | "useCanonical"
+      | "notifyWebhook"
+      | "notifyEmail";
+    expectTypeOf<S2Named>().toExtend<CreateBody>();
+    expectTypeOf<S2Named>().toExtend<keyof CrawlOptions>();
+    expectTypeOf<"repeat" | "maxRounds" | "seedRecrawlFrequency" | "onlyProcessIfNew">().toExtend<CreateBody>();
+    expectTypeOf<Extract<keyof CrawlOptions, "repeat" | "maxRounds" | "seedRecrawlFrequency" | "onlyProcessIfNew">>().toEqualTypeOf<never>();
   });
 });
