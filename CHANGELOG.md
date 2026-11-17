@@ -1,10 +1,57 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
-Phase 0 of the Diffbot SDKs' full HTTP API coverage plan: shared transport
-foundation and full type safety for every existing handler. No new API
-endpoints land in this phase.
+Shared transport foundation, full type safety for every existing handler, and DQL
+over POST. No new API endpoints land in this release.
+
+### Changed
+
+- **`dql()` / `dqlParallel()` now send `POST {dqlUrl}?token=…` with a JSON body**
+  (`{ query, size, from?, format?, filter?, exportspec?, …extra }`) instead of a GET with
+  everything in the query string. The public API is unchanged: same names, options,
+  defaults (`size` 10, `from` only if non-zero, `format` only if not `json`),
+  overloads and return types. This removes the URL length limit and keeps the query
+  text out of URLs and access logs; the token stays in the query string. `size`/`from`
+  are sent as JSON numbers; `extra` values pass through verbatim. Retries are unchanged.
+- `crawlGetJob()` returns `undefined` instead of `{}` for a missing job (a runtime
+  behavior change, not just a type change).
+
+#### Migrating: mocks, proxies, mirrors
+
+Anything keyed on `GET` + `?query=` stops matching. Before:
+
+```ts
+fetch: async (input) => {
+  const url = new URL(String(input));
+  if (url.pathname === "/kg/v3/dql" && url.searchParams.get("query")?.includes("Acme")) {
+    return Response.json({ data: [] });
+  }
+  /* ... */
+};
+```
+
+After:
+
+```ts
+fetch: async (input, init) => {
+  const url = new URL(String(input));
+  if (url.pathname === "/kg/v3/dql" && init?.method === "POST") {
+    const { query } = JSON.parse(String(init.body)) as { query: string };
+    if (query.includes("Acme")) return Response.json({ data: [] });
+  }
+  /* ... */
+};
+```
+
+GET-only proxies/caches or a custom `dqlUrl` mirror that rejects POST: pin 0.3.x, or
+call the endpoint with GET yourself via the existing low-level client:
+
+```ts
+const res = await client.http.get(client.dqlUrl, {
+  params: { token: client.token, query: "type:Organization", size: 10 },
+});
+```
 
 ### Added
 
@@ -43,7 +90,7 @@ endpoints land in this phase.
 - `crawl()`'s URL-report CSV parser no longer splits a quoted field on a
   comma inside it.
 
-### Changed (type-level only; no runtime behavior change beyond what's noted above)
+### Type-level changes
 
 - `crawlGetJob()` returns `CrawlJob | undefined` instead of `{}` for a
   missing job — a job that previously looked like an empty-but-present
