@@ -1,0 +1,35 @@
+name: Live tests
+
+# Hits the real Diffbot APIs with a repository secret. Deliberately NOT triggered by
+# pull_request / pull_request_target (including forks); never add those triggers.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 14 1,15 * *"
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: live-tests
+      cancel-in-progress: false
+    env:
+      DIFFBOT_TOKEN: ${{ secrets.DIFFBOT_TOKEN }}
+      # The library's resolver reads DIFFBOT_API_TOKEN; same secret, never echoed.
+      DIFFBOT_API_TOKEN: ${{ secrets.DIFFBOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:live

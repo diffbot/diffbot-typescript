@@ -5,7 +5,7 @@
 */
 
 import { describe, expect, it } from "vitest";
-import { DiffbotClient, ask, askJson, dql, extract, jsonSchemaFormat, webSearch } from "../src/index.js";
+import { DiffbotClient, ask, askJson, dql, entities, extract, jsonSchemaFormat, webSearch } from "../src/index.js";
 import { resolveToken } from "../src/node/index.js";
 import type { JsonObject } from "../src/json.js";
 
@@ -81,6 +81,45 @@ describe("live", () => {
     const entity = data[0]!.entity as JsonObject;
     expect(entity.name).toBe("Diffbot");
     await db.close();
+  });
+
+  // DQL is sent as POST (JSON body). Kept cheap: size 0 is a hit count, others size 1.
+  live("dql POST: size 0 hit count", async () => {
+    await using db = new DiffbotClient({ token });
+    const result = await dql(db, "type:Organization", { size: 0 });
+    expect(typeof result.hits).toBe("number");
+  });
+
+  live("dql POST: csv returns text", async () => {
+    await using db = new DiffbotClient({ token });
+    const csv = await dql(db, 'type:Organization name:"Diffbot"', { size: 1, format: "csv" });
+    expect(typeof csv).toBe("string");
+    expect(csv.length).toBeGreaterThan(0);
+  });
+
+  live("dql POST: jsonl streams entities", async () => {
+    await using db = new DiffbotClient({ token });
+    const items: unknown[] = [];
+    for await (const item of await dql(db, 'type:Organization name:"Diffbot"', { size: 1, format: "jsonl" })) {
+      items.push(item);
+    }
+    expect(items.length).toBeGreaterThan(0);
+  });
+
+  live("dql POST: a query over 8 KB is accepted (no URL length limit)", async () => {
+    await using db = new DiffbotClient({ token });
+    const clauses = Array.from({ length: 400 }, (_, i) => `name:"Acme Widget Company ${i}"`);
+    const query = `type:Organization or(${clauses.join(",")})`;
+    expect(query.length).toBeGreaterThan(8 * 1024);
+    const result = await dql(db, query, { size: 0 });
+    expect(typeof result.hits).toBe("number");
+  });
+
+  live("entities", async () => {
+    await using db = new DiffbotClient({ token });
+    const result = await entities(db, "Tim Cook is the CEO of Apple, based in Cupertino.");
+    expect(Array.isArray(result.entities)).toBe(true);
+    expect(result.entities?.length ?? 0).toBeGreaterThan(0);
   });
 
   live("web search", async () => {
