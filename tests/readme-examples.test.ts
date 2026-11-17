@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   CrawlEventType,
   DiffbotClient,
+  account,
   ask,
   crawl,
+  crawlDownload,
+  crawlGetJob,
   dql,
   entities,
   extract,
+  verifyToken,
   webSearch,
 } from "../src/index.js";
 import { createMockFetch, jsonResponse, sseResponse } from "./helpers/mock-fetch.js";
@@ -50,6 +54,61 @@ describe("README examples", () => {
     }
     expect(events).toHaveLength(1);
     expect(events[0]!.eventType).toBe(CrawlEventType.JobCreated);
+  });
+
+  it("extract with options", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      fetch: createMockFetch((req) => {
+        expect(req.url).toBe("https://api.diffbot.com/v3/article");
+        expect(req.params.get("fields")).toBe("links,meta");
+        expect(req.params.get("timeout")).toBe("60000");
+        expect(req.params.get("naturalLanguage")).toBe("entities,sentiment");
+        return jsonResponse({ objects: [{ title: "T" }] });
+      }),
+    });
+    const article = await extract(db, "https://www.example.com", "article", "json", {
+      fields: ["links", "meta"],
+      timeout: 60_000,
+      naturalLanguage: ["entities", "sentiment"],
+    });
+    expect(article.objects).toHaveLength(1);
+  });
+
+  it("verifyToken and account", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      fetch: createMockFetch((req) => {
+        expect(req.url).toBe("https://api.diffbot.com/v4/account");
+        return jsonResponse({ plan: "free", usage: [] });
+      }),
+    });
+    expect(await verifyToken(db)).toBe(true);
+    const { plan, usage } = await account(db, { days: 7 });
+    expect(plan).toBe("free");
+    expect(usage).toEqual([]);
+  });
+
+  it("crawl without watch, then crawlGetJob and crawlDownload", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      fetch: createMockFetch((req) => {
+        if (req.url.endsWith("/crawl/data")) {
+          return req.params.get("format") === "csv"
+            ? new Response("pageUrl\nhttps://example.com/\n")
+            : jsonResponse([{ pageUrl: "https://example.com/" }]);
+        }
+        return jsonResponse({ jobs: [{ name: "my-job", jobStatus: { status: 9 } }] });
+      }),
+    });
+    for await (const _ of crawl(db, "https://www.example.com", { jobName: "my-job" })) {
+      void _;
+    }
+    const job = await crawlGetJob(db, "my-job");
+    expect(job?.jobStatus?.status).toBe(9);
+    const records = await crawlDownload(db, "my-job");
+    expect(records).toEqual([{ pageUrl: "https://example.com/" }]);
+    expect(await crawlDownload(db, "my-job", { format: "csv" })).toContain("pageUrl");
   });
 
   it("dql", async () => {

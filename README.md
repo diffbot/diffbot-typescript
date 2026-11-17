@@ -49,7 +49,7 @@ settings from the client you hand it.
 | `timeout` | `30000` (ms) | all; overridable per call (see below) |
 | `retry` | on, 3 attempts | all; `false` disables, or pass a `RetryPolicy` to tune it |
 | `fetch` | global `fetch` | all |
-| `apiBase` | `https://api.diffbot.com` | `extract`, `crawl`, `crawlListJobs`, `crawlGetJob`, `crawlDeleteJob` |
+| `apiBase` | `https://api.diffbot.com` | `extract`, `account`, `verifyToken`, `crawl`, `crawlListJobs`, `crawlGetJob`, `crawlDownload`, `crawlDeleteJob` |
 | `kgBase` | `https://kg.diffbot.com` | `dql`, `dqlParallel`, `dqlFetchOntology`, `dqlFetchOntologyText`, `OntologyStore` |
 | `llmBase` | `https://llm.diffbot.com` | `ask`, `askJson`, `webSearch` |
 | `nlpBase` | `https://nl.diffbot.com` | `entities` |
@@ -117,6 +117,32 @@ const db = new DiffbotClient({ token: "YOUR_TOKEN" });
 const data = await extract(db, "https://www.example.com");
 ```
 
+Pass an optional options object as the fifth argument (use `undefined` to keep the
+defaults for `api` and `fmt`). `timeout` is the server-side limit in ms (default 30000);
+the SDK keeps its own request timeout at least 10 s above it.
+
+```typescript
+const article = await extract(db, "https://www.example.com", "article", "json", {
+  fields: ["links", "meta"],
+  timeout: 60_000,
+  naturalLanguage: ["entities", "sentiment"],
+});
+```
+
+### Check a token and read account usage
+
+`verifyToken()` is `true` for an accepted token and `false` only when the API rejects it
+(`AuthError`); network errors, rate limits and 5xx responses are thrown. The account
+response contains your token and any child tokens, so don't log it.
+
+```typescript
+import { account, verifyToken } from "@diffbot/typescript";
+
+if (await verifyToken(db)) {
+  const { plan, usage } = await account(db, { days: 7 });
+}
+```
+
 ### Ask Diffbot LLM
 
 ```typescript
@@ -178,6 +204,20 @@ import { crawl } from "@diffbot/typescript";
 for await (const event of crawl(db, "https://www.example.com", { hops: 1 })) {
   console.log(event);
 }
+```
+
+To start a crawl without holding a connection open (for example inside a tool call),
+start it without `watch`, poll the job, then download the results:
+
+```typescript
+import { crawl, crawlDownload, crawlGetJob } from "@diffbot/typescript";
+
+for await (const _ of crawl(db, "https://www.example.com", { jobName: "my-job" })) {
+  // yields a single job_created event when `watch` is off
+}
+const job = await crawlGetJob(db, "my-job"); // poll until job?.jobStatus?.status is terminal
+const records = await crawlDownload(db, "my-job"); // CrawlDataRecord[]
+const csv = await crawlDownload(db, "my-job", { format: "csv" }); // string
 ```
 
 ### Query the Knowledge Graph

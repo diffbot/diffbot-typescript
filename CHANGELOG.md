@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased (0.5.0)
+
+Typing and completions for endpoints the SDK already uses, plus two small methods
+that complete existing workflows. Additive only.
+
+### Added
+
+- `account({ days })` and `verifyToken()` over `GET /v4/account`, with an `AccountResponse`
+  type. `verifyToken()` asks for one day of usage and returns `false` only on
+  `AuthError`; every other error propagates. The account body includes the token and
+  `childTokens`, so don't log it.
+- `crawlDownload(client, name, { format?, type?, num? })` over `GET /v3/crawl/data`:
+  `format: "csv"` (and the CSV-only `type: "urls"` URL report) return text; otherwise
+  `CrawlDataRecord[]`. The `crawl()` watcher now calls it internally. Recommended
+  pattern for tools that cannot hold a watch loop: `crawl(..., { watch: false })`,
+  poll `crawlGetJob`, then `crawlDownload`.
+- `extract()` takes an optional fifth argument `options` (per-API `ExtractOptions`):
+  `timeout` (server-side, default stays 30000), `mode` (overrides `fmt: "markdown"`),
+  `fields` (typed per API), `fallback`, `discussion`, `paging`, `maxPages`,
+  `naturalLanguage`, `summaryNumSentences`, `maxTags`, `tagConfidence`,
+  `categoryConfidence`, `useProxy`. `proxy`/`proxyAuth` go through typed `extra`;
+  `callback` is not exposed. A contract type test keeps these in sync with the
+  vendored spec.
+
+### Changed
+
+- `extract()` now keeps its request timeout at least 10 s above the wire `timeout`
+  (including the 30 s default), so the client no longer aborts just before the
+  server would answer. A larger client-level `timeout` still wins.
+- Passing a built-in API name with an option that API does not have is now a type
+  error rather than falling through to the open Custom API overload.
+
 ## 0.4.0
 
 Shared transport foundation, full type safety for every existing handler, and DQL

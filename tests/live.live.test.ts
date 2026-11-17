@@ -5,7 +5,23 @@
 */
 
 import { describe, expect, it } from "vitest";
-import { DiffbotClient, ask, askJson, dql, entities, extract, jsonSchemaFormat, webSearch } from "../src/index.js";
+import {
+  DiffbotClient,
+  account,
+  ask,
+  askJson,
+  crawlDeleteJob,
+  crawlDownload,
+  crawlGetJob,
+  crawlListJobs,
+  crawl,
+  dql,
+  entities,
+  extract,
+  jsonSchemaFormat,
+  verifyToken,
+  webSearch,
+} from "../src/index.js";
 import { resolveToken } from "../src/node/index.js";
 import type { JsonObject } from "../src/json.js";
 
@@ -121,6 +137,66 @@ describe("live", () => {
     expect(Array.isArray(result.entities)).toBe(true);
     expect(result.entities?.length ?? 0).toBeGreaterThan(0);
   });
+
+  // The account body contains `token` and `childTokens`: assert on shape only and never
+  // put the body (or those fields) in an assertion message.
+  live("account + verifyToken (free)", async () => {
+    await using db = new DiffbotClient({ token });
+    const body = await account(db, { days: 1 });
+    expect(typeof body.status).toBe("string");
+    expect(Array.isArray(body.usage)).toBe(true);
+    expect(await verifyToken(db)).toBe(true);
+    await using bad = new DiffbotClient({ token: "invalid-token-for-live-test" });
+    expect(await verifyToken(bad)).toBe(false);
+  });
+
+  live("extract with fields and a caller timeout", async () => {
+    await using db = new DiffbotClient({ token });
+    const result = await extract(db, "https://example.com", "article", "json", {
+      fields: ["links"],
+      timeout: 45_000,
+    });
+    expect(Array.isArray(result.objects)).toBe(true);
+    expect(result.objects?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  live("tiny crawl -> poll -> crawlDownload csv/json -> delete", async () => {
+    const prefix = "sdk-live-ts-";
+    await using db = new DiffbotClient({ token });
+    // Leaked-job check: anything from a prior run of this suite older than 1 h is deleted.
+    const cutoff = Date.now() - 60 * 60 * 1000;
+    for (const job of await crawlListJobs(db)) {
+      const created = Number(job.name?.slice(prefix.length));
+      if (job.name?.startsWith(prefix) && Number.isFinite(created) && created < cutoff) {
+        await crawlDeleteJob(db, job.name);
+      }
+    }
+    const name = `${prefix}${Date.now().toString()}`;
+    try {
+      for await (const _ of crawl(db, "https://example.com", {
+        jobName: name,
+        maxToCrawl: 5,
+        maxToProcess: 5,
+        hops: 0,
+      })) {
+        void _;
+      }
+      let status = 0;
+      for (let i = 0; i < 40; i++) {
+        const job = await crawlGetJob(db, name);
+        status = job?.jobStatus?.status ?? 0;
+        if (status !== 0 && status !== 7) break;
+        await new Promise((r) => setTimeout(r, 3_000));
+      }
+      expect(status).not.toBe(0);
+      const csv = await crawlDownload(db, name, { format: "csv" });
+      expect(typeof csv).toBe("string");
+      const records = await crawlDownload(db, name);
+      expect(Array.isArray(records)).toBe(true);
+    } finally {
+      await crawlDeleteJob(db, name);
+    }
+  }, 180_000);
 
   live("web search", async () => {
     const db = new DiffbotClient({ token });
