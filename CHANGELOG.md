@@ -1,6 +1,44 @@
 # Changelog
 
-## Unreleased (0.5.0)
+## Unreleased (0.6.0)
+
+Parameter completion on endpoints the SDK already uses (S2 of the reduced-scope plan).
+Additive, with one small runtime tightening noted under Changed. `package.json` is not
+bumped here; that happens at release.
+
+### Added
+
+- `dql()` / `dqlParallel()` named options: `type` (`"query" | "text" | "queryTextFallback"
+  | "crawl"`, so `type: "crawl"` with `col` searches a crawl collection), `col`,
+  `filterExclude`, `exportseparator`, `exportfile`, `jsonmode`, `nonCanonicalFacts`,
+  `noDedupArticles`, `cluster`. They go in the POST JSON body; the token stays in the
+  query string. `size` still defaults to 10. `report` and `view` are not named (reports
+  are out of scope) and remain reachable through `extra`.
+- `crawl()` named create options (still query params on the existing GET create):
+  `urlCrawlRegEx`, `urlProcessRegEx`, `pageProcessPattern`, `maxToCrawlPerSubdomain`,
+  `maxToProcessPerSubdomain`, `useCanonical` (`false` sends `useCanonical=0`),
+  `notifyWebhook`, `notifyEmail`.
+- `crawl()` `customHeaders` accepts `string | readonly string[]`; arrays are sent as
+  repeated `customHeaders` params. Recurring-crawl admin (`repeat`, `maxRounds`,
+  `seedRecrawlFrequency`, `onlyProcessIfNew`) is deliberately not exposed.
+- `nlp(client, text, { fields, lang?, format?, documentType?, customSummary? })` on the
+  existing `POST nl.diffbot.com/v1/` endpoint, single document. The result type is
+  `Pick<NaturalLanguageResponse, F>` for the requested fields. `entities()` is unchanged.
+  Also exported: `NlpOptions`, `NlpResponse`.
+- `webSearch()` `text` accepts a string or 1-5 strings, sent as repeated `text=` params
+  on the existing GET. 0 or more than 5 throws `ValidationError` before any request.
+  A single string behaves exactly as before.
+- Contract type test now covers DQL (named options + an explicit allowlist == spec
+  keys) and the new crawl-create options.
+
+### Changed
+
+- `dql()`: a key in `extra` that duplicates a named option (now including `type`, `col`,
+  `filterExclude`, ...) throws `ValidationError`. TypeScript already rejected this at
+  compile time for the old named keys; code that passed `extra: { type: "text" }` must
+  switch to the named `type` option.
+
+## 0.5.0
 
 Typing and completions for endpoints the SDK already uses, plus two small methods
 that complete existing workflows. Additive only.

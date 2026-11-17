@@ -4,12 +4,9 @@ S1 of the reduced-scope plan (`sdk-reduced/plan.md` §8) is complete for TypeScr
 `account`/`verifyToken`, `crawlDownload`, `ExtractOptions`, the spec contract test,
 README snippets (with tests), and the live-suite cases for them.
 
-Not done, by design (S2, not started):
-
-- DQL named params (`type`, `col`, `filterExclude`, ...); `DqlNamedParam` is unchanged.
-  The contract test therefore does not cover DQL yet. Add it with S2.
-- Crawl-create option subset and multi-value `customHeaders`.
-- `nlp()`, and web search multi-value `text`.
+The S2 items that were listed here as "not started" (DQL named params, crawl-create
+subset and multi-value `customHeaders`, `nlp()`, web search multi-value `text`) are
+closed: see `S2_LEFTOVERS.md`.
 
 Not verified here:
 

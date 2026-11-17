@@ -19,6 +19,7 @@ import {
   entities,
   extract,
   jsonSchemaFormat,
+  nlp,
   verifyToken,
   webSearch,
 } from "../src/index.js";
@@ -204,6 +205,26 @@ describe("live", () => {
     const searchResults = result.search_results as JsonObject[];
     expect(searchResults.length).toBeGreaterThan(0);
     await db.close();
+  });
+
+  // S2: assert on shape only, never on web content.
+  live("web search: numResults 1, single and 2-value text", async () => {
+    const db = new DiffbotClient({ token });
+    const one = await webSearch(db, "diffbot knowledge graph", { numResults: 1 });
+    expect(Array.isArray(one.search_results)).toBe(true);
+    const two = await webSearch(db, ["diffbot knowledge graph", "diffbot extract api"], { numResults: 1 });
+    expect(Array.isArray(two.search_results)).toBe(true);
+    await db.close();
+  });
+
+  live("entities and nlp on one sentence", async () => {
+    await using db = new DiffbotClient({ token });
+    const sentence = "Tim Cook is the CEO of Apple, based in Cupertino.";
+    const viaEntities = await entities(db, sentence);
+    expect(Array.isArray(viaEntities.entities)).toBe(true);
+    const viaNlp = await nlp(db, sentence, { fields: ["entities", "language"] });
+    expect(Array.isArray(viaNlp.entities)).toBe(true);
+    expect(typeof viaNlp.language).toBe("string");
   });
 
   live("web search snippetLength", async () => {

@@ -220,12 +220,35 @@ const records = await crawlDownload(db, "my-job"); // CrawlDataRecord[]
 const csv = await crawlDownload(db, "my-job", { format: "csv" }); // string
 ```
 
+Crawl-create options beyond the basics: `urlCrawlRegEx`, `urlProcessRegEx`,
+`pageProcessPattern`, `maxToCrawlPerSubdomain`, `maxToProcessPerSubdomain`,
+`useCanonical`, `notifyWebhook`, `notifyEmail`. `customHeaders` takes one
+`"Name:value"` string or an array of them.
+
+```typescript
+crawl(db, "https://www.example.com", {
+  urlProcessRegEx: "/products/",
+  customHeaders: ["Accept-Language:en-us", "X-Test:1"],
+});
+```
+
 ### Query the Knowledge Graph
 
 ```typescript
 import { dql } from "@diffbot/typescript";
 
 const results = await dql(db, 'type:Organization name:"Diffbot"');
+```
+
+Named options beyond `size`/`from`/`format`/`filter`/`exportspec`: `type`
+(`"query" | "text" | "queryTextFallback" | "crawl"`), `col`, `filterExclude`,
+`exportseparator`, `exportfile`, `jsonmode`, `nonCanonicalFacts`, `noDedupArticles`,
+`cluster`. They go in the POST body. A named key repeated in `extra` throws
+`ValidationError`.
+
+```typescript
+// Search a crawl collection
+const pages = await dql(db, "title:Pricing", { type: "crawl", col: "my-job", size: 5 });
 ```
 
 ### Web Search
@@ -244,6 +267,13 @@ const brief = await webSearch(db, "diffbot knowledge graph", { numResults: 5, sn
 
 // "full" with a url: query returns the whole stored page
 const page = await webSearch(db, "url:https://en.wikipedia.org/wiki/Knowledge_graph", { snippetLength: "full" });
+```
+
+`text` also accepts 1-5 queries, sent as repeated `text=` params (more or fewer throws
+`ValidationError`):
+
+```typescript
+const multi = await webSearch(db, ["diffbot knowledge graph", "diffbot extract api"], { numResults: 3 });
 ```
 
 ### Caching the Knowledge Graph ontology

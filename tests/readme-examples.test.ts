@@ -144,6 +144,45 @@ describe("README examples", () => {
     expect(searchResults[0]!.title).toBe("Diffbot");
   });
 
+  it("dql type crawl with col", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      fetch: createMockFetch((req) => {
+        expect(JSON.parse(req.body ?? "{}")).toEqual({ query: "title:Pricing", size: 5, type: "crawl", col: "my-job" });
+        return jsonResponse({ data: [] });
+      }),
+    });
+    const pages = await dql(db, "title:Pricing", { type: "crawl", col: "my-job", size: 5 });
+    expect(pages.data).toEqual([]);
+  });
+
+  it("webSearch with multiple text values", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      fetch: createMockFetch((req) => {
+        expect(req.params.getAll("text")).toEqual(["diffbot knowledge graph", "diffbot extract api"]);
+        expect(req.params.get("size")).toBe("3");
+        return jsonResponse({ search_results: [] });
+      }),
+    });
+    await webSearch(db, ["diffbot knowledge graph", "diffbot extract api"], { numResults: 3 });
+  });
+
+  it("crawl with customHeaders array", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      fetch: createMockFetch((req) => {
+        expect(req.params.getAll("customHeaders")).toEqual(["Accept-Language:en-us", "X-Test:1"]);
+        expect(req.params.get("urlProcessRegEx")).toBe("/products/");
+        return jsonResponse({ jobs: [{ name: "j" }] });
+      }),
+    });
+    await crawl(db, "https://www.example.com", {
+      urlProcessRegEx: "/products/",
+      customHeaders: ["Accept-Language:en-us", "X-Test:1"],
+    }).next();
+  });
+
   it("entities", async () => {
     const db = new DiffbotClient({
       token: "test-token",
