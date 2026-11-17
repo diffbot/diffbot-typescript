@@ -56,7 +56,8 @@ describe("README examples", () => {
     const db = new DiffbotClient({
       token: "test-token",
       fetch: createMockFetch((req) => {
-        expect(req.params.get("query")).toContain("Diffbot");
+        expect(req.method).toBe("POST");
+        expect(req.body).toContain("Diffbot");
         return jsonResponse({ data: [{ entity: { name: "Diffbot" } }] });
       }),
     });

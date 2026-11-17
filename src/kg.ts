@@ -27,22 +27,15 @@ type DqlResultFor<O extends DqlOptions> = O extends { format: "jsonl" }
         ? string
         : DqlResponse;
 
-function buildDqlParams(
-  client: DiffbotClient,
-  query: string,
-  options: DqlOptions,
-): Record<string, string | number> {
-  const params: Record<string, string | number> = {
-    token: client.token,
-    query,
-    size: options.size ?? 10,
-  };
-  if (options.from) params.from = options.from;
-  if (options.format && options.format !== "json") params.format = options.format;
-  if (options.filter !== undefined) params.filter = options.filter;
-  if (options.exportspec !== undefined) params.exportspec = options.exportspec;
-  if (options.extra) Object.assign(params, options.extra);
-  return params;
+/** JSON body for `POST /kg/v3/dql` (`DqlPostRequest`). The token stays in the query string. */
+function buildDqlBody(query: string, options: DqlOptions): Record<string, unknown> {
+  const body: Record<string, unknown> = { query, size: options.size ?? 10 };
+  if (options.from) body.from = options.from;
+  if (options.format && options.format !== "json") body.format = options.format;
+  if (options.filter !== undefined) body.filter = options.filter;
+  if (options.exportspec !== undefined) body.exportspec = options.exportspec;
+  if (options.extra) Object.assign(body, options.extra);
+  return body;
 }
 
 function resolveDqlKind(format: ExportFormat | undefined, raw: boolean | undefined): "json" | "text" | "bytes" | "ndjson" {
@@ -63,8 +56,10 @@ export async function dql(
   query: string,
   options: DqlOptions = {},
 ): Promise<DqlResponse | string | Uint8Array | AsyncGenerator<DqlEntity>> {
-  const params = buildDqlParams(client, query, options);
-  const response = await client.http.get(client.dqlUrl, { params });
+  const response = await client.http.post(client.dqlUrl, {
+    params: { token: client.token },
+    json: buildDqlBody(query, options),
+  });
   await ensureOk(response);
   switch (resolveDqlKind(options.format, options.raw)) {
     case "ndjson":

@@ -1,5 +1,6 @@
 import { describe, expectTypeOf, it } from "vitest";
-import { DiffbotClient, dql, dqlParallel } from "../../src/index.js";
+import type * as publicApi from "../../src/index.js";
+import { DiffbotClient, dql, dqlParallel, type DqlOptions } from "../../src/index.js";
 import type { DqlEntity, DqlResponse } from "../../src/types/dql.js";
 
 declare const db: DiffbotClient;
@@ -40,5 +41,23 @@ describe("dql() format overloads", () => {
     expectTypeOf(results[0]).toEqualTypeOf<DqlResponse>();
     expectTypeOf(results[1]).toEqualTypeOf<string>();
     expectTypeOf(results[2]).toEqualTypeOf<Uint8Array>();
+  });
+});
+
+describe("dql() public contract is unchanged by the GET -> POST switch", () => {
+  it("keeps the same option keys (no `method` option, no `dqlPost`)", () => {
+    expectTypeOf<keyof DqlOptions>().toEqualTypeOf<
+      "size" | "from" | "format" | "filter" | "exportspec" | "extra" | "raw"
+    >();
+    expectTypeOf<"dqlPost" extends keyof typeof publicApi ? true : false>().toEqualTypeOf<false>();
+  });
+
+  it("keeps size/from as numbers", () => {
+    expectTypeOf<DqlOptions["size"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<DqlOptions["from"]>().toEqualTypeOf<number | undefined>();
+  });
+
+  it("dqlParallel still accepts per-query options and a worker count (result types: see above)", () => {
+    void dqlParallel(db, [{ query: "a", size: 1 }], 4);
   });
 });

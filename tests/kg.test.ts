@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { DiffbotClient, dql, dqlFetchOntologyText, dqlParallel } from "../src/index.js";
 import { createMockFetch, jsonResponse } from "./helpers/mock-fetch.js";
 
+function bodyOf(req: { body?: string }): Record<string, unknown> {
+  return JSON.parse(req.body ?? "{}") as Record<string, unknown>;
+}
+
 function makeClient(handler: Parameters<typeof createMockFetch>[0]) {
   return new DiffbotClient({ token: "test-token", fetch: createMockFetch(handler) });
 }
@@ -10,22 +14,50 @@ describe("dql", () => {
   it("sends token, query, and default size", async () => {
     const db = makeClient((req) => {
       expect(req.params.get("token")).toBe("test-token");
-      expect(req.params.get("query")).toBe('type:Organization');
-      expect(req.params.get("size")).toBe("10");
+      expect(bodyOf(req)).toEqual({ query: "type:Organization", size: 10 });
       return jsonResponse({ data: [], hits: 0 });
     });
     const result = await dql(db, "type:Organization");
     expect(result).toEqual({ data: [], hits: 0 });
   });
 
+  it("POSTs JSON with the token in the query string and the query out of the URL", async () => {
+    let seen = false;
+    const db = makeClient((req) => {
+      seen = true;
+      expect(req.method).toBe("POST");
+      expect(req.headers.get("content-type")).toBe("application/json");
+      expect([...req.params.keys()]).toEqual(["token"]);
+      expect(req.params.get("query")).toBeNull();
+      expect(req.body).not.toContain("test-token");
+      expect(bodyOf(req).query).toBe("type:Organization name:Acme");
+      return jsonResponse({ data: [] });
+    });
+    await dql(db, "type:Organization name:Acme");
+    expect(seen).toBe(true);
+  });
+
+  it("retries a 503 on the POST", async () => {
+    let calls = 0;
+    const db = new DiffbotClient({
+      token: "test-token",
+      retry: { baseDelayMs: 1, maxDelayMs: 1 },
+      fetch: createMockFetch(() => (++calls < 2 ? jsonResponse({}, 503) : jsonResponse({ data: [] }))),
+    });
+    await dql(db, "type:Organization");
+    expect(calls).toBe(2);
+  });
+
   it("forwards options and omits json format", async () => {
     const db = makeClient((req) => {
-      expect(req.params.get("size")).toBe("25");
-      expect(req.params.get("from")).toBe("5");
-      expect(req.params.get("filter")).toBe("foo");
-      expect(req.params.get("exportspec")).toBe("bar");
-      expect(req.params.get("format")).toBeNull();
-      expect(req.params.get("extraKey")).toBe("extraVal");
+      expect(bodyOf(req)).toEqual({
+        query: "type:Person",
+        size: 25,
+        from: 5,
+        filter: "foo",
+        exportspec: "bar",
+        extraKey: "extraVal",
+      });
       return jsonResponse({ data: [] });
     });
     await dql(db, "type:Person", {
@@ -40,7 +72,7 @@ describe("dql", () => {
 
   it("sets non-json format", async () => {
     const db = makeClient((req) => {
-      expect(req.params.get("format")).toBe("csv");
+      expect(bodyOf(req).format).toBe("csv");
       return jsonResponse({ data: [] });
     });
     await dql(db, "type:Person", { format: "csv" });
@@ -57,7 +89,7 @@ describe("dql", () => {
   it("streams format: jsonl as an async generator of entities", async () => {
     const lines = `${JSON.stringify({ value: "a" })}\n${JSON.stringify({ value: "b" })}\n`;
     const db = makeClient((req) => {
-      expect(req.params.get("format")).toBe("jsonl");
+      expect(bodyOf(req).format).toBe("jsonl");
       return new Response(lines, { status: 200 });
     });
     const result = await dql(db, "type:Organization", { format: "jsonl" });
@@ -123,8 +155,7 @@ describe("dqlParallel", () => {
 
   it("runs queries and preserves order", async () => {
     const db = makeClient((req) => {
-      const query = req.params.get("query")!;
-      return jsonResponse({ query });
+      return jsonResponse({ query: bodyOf(req).query });
     });
     const results = await dqlParallel(
       db,
@@ -135,9 +166,9 @@ describe("dqlParallel", () => {
   });
 
   it("forwards per-query options", async () => {
-    const db = makeClient((req) => jsonResponse({ size: req.params.get("size") }));
+    const db = makeClient((req) => jsonResponse({ size: bodyOf(req).size }));
     const results = await dqlParallel(db, [{ query: "a", size: 50 }]);
-    expect(results).toEqual([{ size: "50" }]);
+    expect(results).toEqual([{ size: 50 }]);
   });
 });
 

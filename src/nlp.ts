@@ -7,7 +7,7 @@ export type { NaturalLanguageResponse, NlpDocument, NlpField } from "./types/nat
 
 const NLP_FIELDS = "entities,sentiment";
 
-/** Narrowed to the two fields `entities()` always requests; see `nlp()` (Phase 7) for the full surface. */
+/** Narrowed to the two fields `entities()` always requests. */
 export type EntitiesResponse = Pick<NaturalLanguageResponse, "entities" | "sentiment">;
 
 export async function entities(client: DiffbotClient, text: string, lang = "auto"): Promise<EntitiesResponse> {
