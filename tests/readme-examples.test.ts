@@ -9,6 +9,7 @@ import {
   crawlGetJob,
   dql,
   entities,
+  nlp,
   extract,
   verifyToken,
   webSearch,
@@ -165,6 +166,27 @@ describe("README examples", () => {
     const entityList = result.entities as Array<Record<string, unknown>>;
     expect(entityList).toHaveLength(2);
     expect(result.sentiment).toBe(0.3);
+  });
+
+  it("nlp", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      fetch: createMockFetch((req) => {
+        expect(req.params.get("fields")).toBe("summary,language");
+        const doc = (JSON.parse(req.body ?? "[]") as Array<Record<string, unknown>>)[0]!;
+        expect(doc.format).toBe("plain text with title");
+        expect(doc.customSummary).toEqual({ maxNumberOfSentences: 1 });
+        return jsonResponse([{ summary: "Apple reports record earnings.", language: "en" }]);
+      }),
+    });
+    const result = await nlp(db, "Headline\nApple CEO Tim Cook announced record quarterly earnings.", {
+      fields: ["summary", "language"],
+      format: "plain text with title",
+      documentType: "news article",
+      customSummary: { maxNumberOfSentences: 1 },
+    });
+    expect(result.summary).toBe("Apple reports record earnings.");
+    expect(result.language).toBe("en");
   });
 
   it("apiBase points every api.diffbot.com endpoint at a staging host", async () => {

@@ -278,6 +278,21 @@ import { entities } from "@diffbot/typescript";
 const result = await entities(db, "Apple CEO Tim Cook announced record quarterly earnings.");
 ```
 
+For other analyses on the same endpoint (single document), use `nlp()`; the result type is
+narrowed to the fields you ask for. `entities()` stays the fixed `entities,sentiment` shortcut.
+
+```typescript
+import { nlp } from "@diffbot/typescript";
+
+const result = await nlp(db, "Headline\nApple CEO Tim Cook announced record quarterly earnings.", {
+  fields: ["summary", "language"],
+  format: "plain text with title",
+  documentType: "news article",
+  customSummary: { maxNumberOfSentences: 1 },
+});
+console.log(result.summary, result.language);
+```
+
 ### Automatic cleanup with `await using`
 
 `DiffbotClient` supports explicit resource management for automatic cleanup:

@@ -49,7 +49,13 @@ export {
   type DqlOptions,
   type DqlType,
 } from "./kg.js";
-export { entities, type EntitiesResponse } from "./nlp.js";
+export {
+  entities,
+  nlp,
+  type EntitiesResponse,
+  type NlpOptions,
+  type NlpResponse,
+} from "./nlp.js";
 export { Ontology } from "./ontology.js";
 export {
   OntologyStore,
