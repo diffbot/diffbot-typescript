@@ -7,6 +7,17 @@ import type { WebSearchResponse } from "../../src/types/web-search.js";
 declare const db: DiffbotClient;
 
 describe("webSearch()/entities() types", () => {
+  it("webSearch accepts a string or a readonly string array, nothing else", () => {
+    void webSearch(db, "a");
+    void webSearch(db, ["a", "b"]);
+    void webSearch(db, ["a", "b"] as const);
+    // @ts-expect-error -- text must be strings.
+    void webSearch(db, [1, 2]);
+    // @ts-expect-error -- a bare number is not a query.
+    void webSearch(db, 5);
+    expectTypeOf(webSearch(db, ["a"])).resolves.toEqualTypeOf<WebSearchResponse>();
+  });
+
   it("webSearch resolves to a typed WebSearchResponse", () => {
     expectTypeOf(webSearch(db, "diffbot")).resolves.toEqualTypeOf<WebSearchResponse>();
   });

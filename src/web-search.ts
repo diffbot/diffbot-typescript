@@ -27,13 +27,26 @@ export interface WebSearchOptions {
   snippetLength?: SnippetLength;
 }
 
+/** The API accepts 1-5 `text` values per request. */
+export const WEB_SEARCH_MAX_TEXTS = 5;
+
+/**
+ * `text` may be one query or 1-5 queries (sent as repeated `text=` params on the GET).
+ * A single string is the default path. Any other count throws `ValidationError`.
+ */
 export async function webSearch(
   client: DiffbotClient,
-  text: string,
+  text: string | readonly string[],
   options: WebSearchOptions = {},
 ): Promise<WebSearchResponse> {
+  const texts = typeof text === "string" ? [text] : text;
+  if (texts.length < 1 || texts.length > WEB_SEARCH_MAX_TEXTS) {
+    throw new ValidationError(`webSearch text must have 1-${WEB_SEARCH_MAX_TEXTS.toString()} values; got ${texts.length.toString()}`);
+  }
   const headers = { Authorization: `Bearer ${client.token}` };
-  const params: Record<string, string | number> = { text };
+  const params: Record<string, string | number | readonly string[]> = {
+    text: typeof text === "string" ? text : [...texts],
+  };
   if (options.numResults !== undefined) params.size = options.numResults;
   if (options.maxTokens !== undefined) params.maxTokens = options.maxTokens;
   if (options.snippetLength !== undefined) {
