@@ -7,6 +7,7 @@ import {
   JobError,
   crawl,
   crawlDeleteJob,
+  crawlDownload,
   crawlGetJob,
   crawlListJobs,
 } from "../src/index.js";
@@ -152,5 +153,53 @@ describe("crawl", () => {
     });
     await expect(crawlDeleteJob(db, "test-job")).rejects.toMatchObject({ statusCode: 503 });
     expect(calls).toBe(1);
+  });
+});
+
+describe("crawlDownload", () => {
+  it("GETs /v3/crawl/data with name only by default and parses JSON records", async () => {
+    const db = makeClient((req) => {
+      expect(req.method).toBe("GET");
+      expect(req.url).toBe("https://api.diffbot.com/v3/crawl/data");
+      expect(req.params.get("token")).toBe("test-token");
+      expect(req.params.get("name")).toBe("job1");
+      expect(req.params.has("format")).toBe(false);
+      expect(req.params.has("type")).toBe(false);
+      expect(req.params.has("num")).toBe(false);
+      return jsonResponse([{ col: "job1", pageUrl: "https://example.com/", type: "other" }]);
+    });
+    const records = await crawlDownload(db, "job1");
+    expect(records).toEqual([{ col: "job1", pageUrl: "https://example.com/", type: "other" }]);
+  });
+
+  it("returns CSV text for format: csv and forwards type/num", async () => {
+    const db = makeClient((req) => {
+      expect(req.params.get("format")).toBe("csv");
+      expect(req.params.get("num")).toBe("5");
+      return new Response("pageUrl,title\nhttps://example.com/,Example\n", { status: 200 });
+    });
+    const csv = await crawlDownload(db, "job1", { format: "csv", num: 5 });
+    expect(csv).toBe("pageUrl,title\nhttps://example.com/,Example\n");
+  });
+
+  it("returns the URL report as text (type: urls)", async () => {
+    const db = makeClient((req) => {
+      expect(req.params.get("type")).toBe("urls");
+      expect(req.params.has("format")).toBe(false);
+      return new Response("Url,Crawled Time,Crawl Status\n", { status: 200 });
+    });
+    expect(await crawlDownload(db, "job1", { type: "urls" })).toBe("Url,Crawled Time,Crawl Status\n");
+  });
+
+  it("returns [] for an empty JSON body", async () => {
+    const db = makeClient(() => new Response("", { status: 200 }));
+    expect(await crawlDownload(db, "job1")).toEqual([]);
+  });
+
+  it("raises on a 400 for an unknown job and on a 200 error object", async () => {
+    const missing = makeClient(() => jsonResponse({ errorCode: 400, error: "No collection record" }, 400));
+    await expect(crawlDownload(missing, "nope")).rejects.toMatchObject({ statusCode: 400 });
+    const odd = makeClient(() => jsonResponse({ errorCode: 400, error: "No collection record" }));
+    await expect(crawlDownload(odd, "nope")).rejects.toBeInstanceOf(JobError);
   });
 });

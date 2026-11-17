@@ -3,7 +3,7 @@ import { headersToRecord, parseJsonText, readText } from "./decode.js";
 import { APIError, JobError } from "./errors.js";
 import { ensureOk } from "./http.js";
 import type { JsonObject } from "./json.js";
-import type { CrawlJob } from "./types/undocumented.js";
+import type { CrawlDataRecord, CrawlJob } from "./types/undocumented.js";
 
 interface CrawlListResponse extends JsonObject {
   jobs?: CrawlJob[];
@@ -195,12 +195,7 @@ export async function* crawl(
     const jobStatus = job.jobStatus ?? {};
     const statusCode = jobStatus.status ?? 0;
 
-    const urlsResponse = await client.http.get(`${client.crawlerUrl}/data`, {
-      params: { token: client.token, name: jobName, type: "urls" },
-      redirect: "follow",
-    });
-    await ensureOk(urlsResponse);
-    const urlsBody = await readText(urlsResponse);
+    const urlsBody = await crawlDownload(client, jobName, { type: "urls" });
     if (urlsBody) {
       for (const event of parseUrlCsv(urlsBody, seenUrls)) {
         yield event;
@@ -225,6 +220,53 @@ export async function crawlListJobs(client: DiffbotClient): Promise<CrawlJob[]> 
   });
   await ensureOk(response);
   return parseJsonText<CrawlListResponse>(await readText(response)).jobs ?? [];
+}
+
+export interface CrawlDownloadOptions {
+  /** `"csv"` returns the raw CSV text (top-level fields only). Default `"json"`. */
+  format?: "json" | "csv";
+  /** e.g. `"urls"` for the URL report. That report is always CSV text, whatever `format` says. */
+  type?: string;
+  /** Only the N most recently processed URLs. */
+  num?: number;
+}
+
+/** CSV text when `format: "csv"` or `type: "urls"`; otherwise parsed records. */
+export type CrawlDownloadResult<O extends CrawlDownloadOptions> = O extends { format: "csv" }
+  ? string
+  : O extends { type: "urls" }
+    ? string
+    : CrawlDataRecord[];
+
+/**
+ * `GET /v3/crawl/data`: download a crawl job's extracted data. For tools that cannot sit in
+ * a watch loop, the recommended pattern is `crawl(..., { watch: false })`, poll
+ * `crawlGetJob` until its `jobStatus` is terminal, then `crawlDownload`.
+ */
+export async function crawlDownload<const O extends CrawlDownloadOptions = Record<string, never>>(
+  client: DiffbotClient,
+  jobName: string,
+  options?: O,
+): Promise<CrawlDownloadResult<O>>;
+export async function crawlDownload(
+  client: DiffbotClient,
+  jobName: string,
+  options: CrawlDownloadOptions = {},
+): Promise<string | CrawlDataRecord[]> {
+  const params: Record<string, string | number> = { token: client.token, name: jobName };
+  if (options.format === "csv") params.format = "csv";
+  if (options.type !== undefined) params.type = options.type;
+  if (options.num !== undefined) params.num = options.num;
+  const response = await client.http.get(`${client.crawlerUrl}/data`, { params, redirect: "follow" });
+  await ensureOk(response);
+  const body = await readText(response);
+  if (options.format === "csv" || options.type === "urls") return body;
+  if (!body.trim()) return [];
+  const data = parseJsonText<CrawlDataRecord[] | { errorCode?: number; error?: string }>(body);
+  if (!Array.isArray(data)) {
+    throw new JobError(jobName, `Crawl data download failed: ${data.error ?? "unexpected response"}`);
+  }
+  return data;
 }
 
 /** `undefined` when no job with this name exists (previously an indistinguishable `{}`). */

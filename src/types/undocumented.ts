@@ -82,6 +82,23 @@ export interface CrawlJob extends JsonObject {
   downloadUrls?: string;
 }
 
+/**
+ * One record of `GET /v3/crawl/data` (JSON). Shape from `crawl.json`'s response schema
+ * (the keys below are required there); all other keys follow the ontology of `type`.
+ * Note that the server includes your token in each record: don't log them verbatim.
+ */
+export interface CrawlDataRecord extends JsonObject {
+  col?: string;
+  parentUrl?: string;
+  pageUrl?: string;
+  id?: number;
+  type?: string;
+  title?: string;
+  content?: string;
+  token?: string;
+  timestamp?: string;
+}
+
 // ---- Extract (extract.json documents examples only, no response schema) ----
 
 export interface ExtractResponse<T extends JsonObject = JsonObject> extends JsonObject {

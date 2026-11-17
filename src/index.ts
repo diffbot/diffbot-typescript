@@ -19,9 +19,12 @@ export {
 export {
   crawl,
   crawlDeleteJob,
+  crawlDownload,
   crawlGetJob,
   crawlListJobs,
   CrawlEventType,
+  type CrawlDownloadOptions,
+  type CrawlDownloadResult,
   type CrawlEvent,
   type CrawlOptions,
 } from "./crawl.js";
@@ -65,6 +68,7 @@ export type { WebSearchResponse, WebSearchResult } from "./types/web-search.js";
 export type {
   AnalyzeObject,
   ArticleObject,
+  CrawlDataRecord,
   CrawlJob,
   CustomApiObject,
   DiscussionObject,
