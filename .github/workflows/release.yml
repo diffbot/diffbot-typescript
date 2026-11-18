@@ -4,8 +4,14 @@ name: Release
 # GitHub Release. Triggered by pushing a version tag (e.g. v0.6.0); also runnable
 # manually, which runs every gate plus `npm publish --dry-run` and publishes nothing.
 #
-# npm auth: trusted publishing (OIDC) first. If no trusted publisher is configured on
-# npmjs.com, npm falls back to the NPM_TOKEN repository secret (if set).
+# npm auth: trusted publishing (OIDC) only. No token is passed to npm, so a
+# misconfigured trusted publisher fails the publish instead of silently using a token.
+#
+# Release candidates: set package.json and src/constants.ts to a prerelease version
+# (e.g. 0.6.0-rc.0) and push the matching tag (v0.6.0-rc.0). Any version containing
+# "-" is published under the "next" dist-tag (so "latest" is untouched) and its GitHub
+# Release is marked as a prerelease. Its notes come from a "## [0.6.0-rc.0]" CHANGELOG
+# section if there is one, otherwise from the base version's "## [0.6.0]" section.
 # Live tests are deliberately NOT run here; see live-tests.yml.
 on:
   push:
@@ -65,7 +71,12 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          if ! grep -qF "## [${VERSION}]" CHANGELOG.md; then
+          # A prerelease (0.6.0-rc.0) may reuse its base version's section (0.6.0).
+          if grep -qF "## [${VERSION}]" CHANGELOG.md; then
+            echo "Found '## [${VERSION}]'."
+          elif [ "${VERSION%%-*}" != "${VERSION}" ] && grep -qF "## [${VERSION%%-*}]" CHANGELOG.md; then
+            echo "Prerelease ${VERSION}: using the '## [${VERSION%%-*}]' section."
+          else
             echo "::error::CHANGELOG.md has no '## [${VERSION}]' section."
             exit 1
           fi
@@ -138,7 +149,6 @@ jobs:
       - name: Publish
         env:
           VERSION: ${{ needs.verify.outputs.version }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
           name=$(node -p 'require("./package.json").name')
@@ -159,14 +169,8 @@ jobs:
             exit 0
           fi
 
-          # npm tries OIDC trusted publishing first and only falls back to this
-          # token when no trusted publisher matches. Never echo it.
-          if [ -n "${NPM_TOKEN}" ]; then
-            export NODE_AUTH_TOKEN="${NPM_TOKEN}"
-            echo "NPM_TOKEN secret present (used only if trusted publishing is not configured)."
-          else
-            echo "No NPM_TOKEN secret; relying on npm trusted publishing."
-          fi
+          # Trusted publishing (OIDC) only; no token is exported.
+          echo "Publishing ${name}@${VERSION} with dist-tag ${dist_tag} via npm trusted publishing."
           npm publish --access public --provenance --tag "$dist_tag"
 
   release:
@@ -186,8 +190,13 @@ jobs:
           VERSION: ${{ needs.verify.outputs.version }}
         run: |
           set -euo pipefail
-          # Everything after "## [VERSION]" up to the next "## " heading.
-          awk -v hdr="## [${VERSION}]" '
+          # Everything after "## [VERSION]" up to the next "## " heading. A prerelease
+          # without its own section uses its base version's section.
+          hdr_version="${VERSION}"
+          if ! grep -qF "## [${VERSION}]" CHANGELOG.md; then
+            hdr_version="${VERSION%%-*}"
+          fi
+          awk -v hdr="## [${hdr_version}]" '
             index($0, hdr) == 1 { found = 1; next }
             found && /^## / { exit }
             found { print }

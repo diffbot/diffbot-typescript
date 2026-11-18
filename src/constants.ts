@@ -1,4 +1,4 @@
-export const VERSION = "0.6.0";
+export const VERSION = "0.6.0-rc.0";
 
 export const DEFAULT_TIMEOUT = 30_000;
 
