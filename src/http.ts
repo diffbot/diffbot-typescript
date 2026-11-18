@@ -174,6 +174,8 @@ export class HttpClient {
       }
 
       if (policy && attempt < maxAttempts && isRetryableStatus(response.status)) {
+        // Release the discarded attempt's connection; an unread body pins it in undici.
+        await response.body?.cancel().catch(() => undefined);
         await sleep(computeDelayMs(attempt, response.headers.get("retry-after"), policy));
         continue;
       }

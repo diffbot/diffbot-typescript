@@ -89,6 +89,8 @@ const res = await client.http.get(client.dqlUrl, {
   as text and re-encoded, which replaced invalid-UTF-8 bytes with U+FFFD.
 - `crawl()`'s URL-report CSV parser no longer splits a quoted field on a
   comma inside it.
+- A retried attempt's response body is discarded before the retry, so its
+  connection is released instead of staying pinned until garbage collection.
 
 ### Type-level changes
 

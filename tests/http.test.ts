@@ -103,6 +103,15 @@ describe("HttpClient retry policy", () => {
     expect(response.status).toBe(200);
   });
 
+  it("discards the body of a response it is about to retry", async () => {
+    const discarded = new Response("busy", { status: 503 });
+    let calls = 0;
+    const fetchFn = createMockFetch(() => (++calls === 1 ? discarded : jsonResponse({ ok: true })));
+    const client = new HttpClient(fetchFn, 30_000, "test-agent", { baseDelayMs: 1, maxDelayMs: 1 });
+    await client.get("https://example.com/x");
+    await expect(discarded.text()).rejects.toThrow();
+  });
+
   it("gives up after maxAttempts", async () => {
     let calls = 0;
     const fetchFn = createMockFetch(() => {
