@@ -16,7 +16,8 @@ Not verified here:
 - The live suite (`pnpm test:live`) was not run: no token was resolvable in the build
   environment. The new cases (DQL POST, account, extract options, tiny crawl) have only
   been type-checked and linted. Run it once with a real token before releasing.
-- Plan §11 Q1: confirm with Diffbot that DQL POST fields behave exactly like their GET
-  equivalents (jsonl streaming, `exportspec`, string-vs-number values).
+- Plan §11 Q1 (DQL POST parity with GET) is confirmed live for the tested cases (json,
+  csv, jsonl, long query; long queries only work on POST). `exportspec` and
+  string-vs-number values in `extra` are not individually live-tested.
 - `GET /v3/crawl/data` for a missing job is assumed to be a 400 error body (per
   `crawl.json`); `crawlDownload` surfaces it as `APIError`.
