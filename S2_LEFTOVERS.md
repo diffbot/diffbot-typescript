@@ -31,16 +31,15 @@ TypeScript. Nothing else is planned after it.
 
 ## Not verified here
 
-- The live suite was not run in this session (by instruction). The new cases (web search
-  with `numResults: 1` and 1/2-value `text`; `entities` + `nlp` on one sentence) are only
-  type-checked and linted. Plan §11 Q2 (does GET accept repeated `text=`?) is therefore
-  still open: run the live suite once with a real token before releasing, and drop the
-  multi-value `webSearch` change if the server rejects it.
-- Plan §11 Q1 (DQL POST body parity for the new fields, e.g. `nonCanonicalFacts` as JSON
-  boolean vs string) and Q3 (crawl GET create supported long term) are unconfirmed.
+- The live suite was not run in the session that built S2 (by instruction); Q2 and Q3
+  were later confirmed live (see below). The other new cases (`entities` + `nlp` on one
+  sentence) are only type-checked and linted.
+- Plan §11 Q1 (DQL POST body parity) is confirmed for the cases the live suite covers
+  (json, csv, jsonl, long query). The new S2 fields (e.g. `nonCanonicalFacts` as a JSON
+  boolean) are not individually live-tested.
 - `nlp()` `customSummary` and `documentType` behavior is from the vendored spec only.
 
 ## Live confirmations
 
 - Q2 confirmed live: repeated `text=` on GET web search is accepted (HTTP 200, results mix both values; 5 values also 200).
-- Q3 confirmed live: GET crawl create works, but job names must be <= 30 chars (longer returns HTTP 200 + errorCode 505 and creates nothing).
+- Q3 confirmed live: GET crawl create works, but job names must be <= 30 chars (longer returns HTTP 200 + errorCode 505 and creates nothing). `crawl()` now throws `APIError` for any HTTP 200 create body carrying `errorCode` (fixed on the Phase 0 branch).
