@@ -13,12 +13,16 @@ export function headersToRecord(headers: Headers): Record<string, string> {
   return record;
 }
 
-/** Best-effort extraction of `{message, requestId}` from an API error body. Never throws. */
+/**
+ * Best-effort extraction of `{message, requestId}` from an API error body. Never throws.
+ * Falls back to `error` for the `{ errorCode, error }` shape several Diffbot APIs use.
+ */
 export function tryParseErrorBody(body: string): { message?: string; requestId?: string } {
   try {
-    const data = JSON.parse(body) as { message?: unknown; requestId?: unknown };
+    const data = JSON.parse(body) as { message?: unknown; error?: unknown; requestId?: unknown };
     return {
-      message: typeof data.message === "string" ? data.message : undefined,
+      message:
+        typeof data.message === "string" ? data.message : typeof data.error === "string" ? data.error : undefined,
       requestId: typeof data.requestId === "string" ? data.requestId : undefined,
     };
   } catch {

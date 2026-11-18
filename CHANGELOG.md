@@ -89,6 +89,12 @@ const res = await client.http.get(client.dqlUrl, {
   as text and re-encoded, which replaced invalid-UTF-8 bytes with U+FFFD.
 - `crawl()`'s URL-report CSV parser no longer splits a quoted field on a
   comma inside it.
+- `crawl()` throws `APIError` when the create call answers HTTP 200 with an
+  `errorCode` body (for example `505`, a job name over 30 characters). Before, it
+  reported `JobCreated` for a job that was never created, and the watch loop then
+  ended silently.
+- `APIError.apiMessage` falls back to the body's `error` field when there is no
+  `message`, so `{ errorCode, error }` bodies produce a readable error message.
 - A retried attempt's response body is discarded before the retry, so its
   connection is released instead of staying pinned until garbage collection.
 

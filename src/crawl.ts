@@ -1,6 +1,6 @@
 import type { DiffbotClient } from "./client.js";
-import { parseJsonText, readText } from "./decode.js";
-import { JobError } from "./errors.js";
+import { headersToRecord, parseJsonText, readText } from "./decode.js";
+import { APIError, JobError } from "./errors.js";
 import { ensureOk } from "./http.js";
 import type { JsonObject } from "./json.js";
 import type { CrawlJob } from "./types/undocumented.js";
@@ -125,6 +125,15 @@ function parseUrlCsv(text: string, seenUrls: Set<string>): CrawlEvent[] {
   return events;
 }
 
+/** `errorCode` from a crawl-create body, or `undefined` for success or a non-JSON body. */
+function createErrorCode(body: string): unknown {
+  try {
+    return parseJsonText(body).errorCode;
+  } catch {
+    return undefined;
+  }
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -153,6 +162,13 @@ export async function* crawl(
 
   const response = await client.http.get(client.crawlerUrl, { params });
   await ensureOk(response);
+  // Some create failures (e.g. a job name over 30 characters, errorCode 505) arrive as
+  // HTTP 200 with `{ errorCode, error }` and create nothing; surface them here instead of
+  // reporting JobCreated and then watching a job that does not exist.
+  const createBody = await readText(response);
+  if (createErrorCode(createBody) !== undefined) {
+    throw new APIError(response.status, createBody, headersToRecord(response.headers));
+  }
 
   yield {
     eventType: CrawlEventType.JobCreated,

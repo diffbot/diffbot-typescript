@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  APIError,
   AuthError,
   CrawlEventType,
   DiffbotClient,
@@ -48,6 +49,14 @@ describe("crawl", () => {
     });
     await crawl(db, "example.com", { jobName: "test-job" }).next();
     expect(seeds).toBe("https://example.com");
+  });
+
+  it("raises APIError when create answers HTTP 200 with an errorCode", async () => {
+    const db = makeClient(() => jsonResponse({ errorCode: 505, error: "name is over 30 chars" }));
+    const iterator = crawl(db, "https://example.com", { jobName: "x".repeat(31) });
+    const error: unknown = await iterator.next().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(APIError);
+    expect(error).toMatchObject({ statusCode: 200, apiMessage: "name is over 30 chars" });
   });
 
   it("raises AuthError on 401", async () => {
