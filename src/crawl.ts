@@ -54,20 +54,12 @@ function buildCrawlParams(
   client: DiffbotClient,
   jobName: string,
   site: string,
-  options: Required<Pick<CrawlOptions, "maxToCrawl" | "maxToProcess" | "hops" | "restrictDomain" | "apiUrl" | "crawlDelay" | "obeyRobots" | "useProxies">> &
-    Pick<
-      CrawlOptions,
-      | "urlCrawlPattern"
-      | "urlProcessPattern"
-      | "customHeaders"
-      | "urlCrawlRegEx"
-      | "urlProcessRegEx"
-      | "pageProcessPattern"
-      | "maxToCrawlPerSubdomain"
-      | "maxToProcessPerSubdomain"
-      | "useCanonical"
-      | "notifyWebhook"
-      | "notifyEmail"
+  options: CrawlOptions &
+    Required<
+      Pick<
+        CrawlOptions,
+        "maxToCrawl" | "maxToProcess" | "hops" | "restrictDomain" | "apiUrl" | "crawlDelay" | "obeyRobots" | "useProxies"
+      >
     >,
 ) {
   const params: Record<string, string | number | readonly string[]> = {
@@ -187,25 +179,15 @@ export async function* crawl(
   const jobName = options.jobName ?? `crawl-${Math.floor(Date.now() / 1000).toString()}`;
 
   const params = buildCrawlParams(client, jobName, normalizedSite, {
+    ...options,
     hops: options.hops ?? 2,
     maxToCrawl: options.maxToCrawl ?? 100,
     maxToProcess: options.maxToProcess ?? 100,
     restrictDomain: options.restrictDomain ?? true,
     apiUrl: options.apiUrl ?? "",
     crawlDelay: options.crawlDelay ?? -1,
-    urlCrawlPattern: options.urlCrawlPattern,
-    urlProcessPattern: options.urlProcessPattern,
     obeyRobots: options.obeyRobots ?? false,
     useProxies: options.useProxies ?? false,
-    customHeaders: options.customHeaders,
-    urlCrawlRegEx: options.urlCrawlRegEx,
-    urlProcessRegEx: options.urlProcessRegEx,
-    pageProcessPattern: options.pageProcessPattern,
-    maxToCrawlPerSubdomain: options.maxToCrawlPerSubdomain,
-    maxToProcessPerSubdomain: options.maxToProcessPerSubdomain,
-    useCanonical: options.useCanonical,
-    notifyWebhook: options.notifyWebhook,
-    notifyEmail: options.notifyEmail,
   });
 
   const response = await client.http.get(client.crawlerUrl, { params });
