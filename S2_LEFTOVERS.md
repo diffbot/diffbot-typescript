@@ -39,3 +39,8 @@ TypeScript. Nothing else is planned after it.
 - Plan §11 Q1 (DQL POST body parity for the new fields, e.g. `nonCanonicalFacts` as JSON
   boolean vs string) and Q3 (crawl GET create supported long term) are unconfirmed.
 - `nlp()` `customSummary` and `documentType` behavior is from the vendored spec only.
+
+## Live confirmations
+
+- Q2 confirmed live: repeated `text=` on GET web search is accepted (HTTP 200, results mix both values; 5 values also 200).
+- Q3 confirmed live: GET crawl create works, but job names must be <= 30 chars (longer returns HTTP 200 + errorCode 505 and creates nothing).
