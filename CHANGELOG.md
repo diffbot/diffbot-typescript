@@ -33,6 +33,13 @@ bumped here; that happens at release.
 
 ### Changed
 
+- **`Retry-After` now has a ceiling.** `RetryPolicy.maxDelayMs` (default 5000) used to
+  cap only the exponential backoff, so a 429/5xx with `Retry-After: 3600` made one call
+  sleep an hour. Now, if `Retry-After` (seconds or HTTP-date form) exceeds `maxDelayMs`,
+  the SDK neither sleeps nor retries; it surfaces that response at once, so the caller
+  gets `RateLimitError` with `retryAfter` set (or `APIError` with the header in `headers`
+  for a 5xx). A `Retry-After` at or under the cap is honored as before. Raise
+  `maxDelayMs` to keep waiting out longer server-requested delays.
 - `dql()`: a key in `extra` that duplicates a named option (now including `type`, `col`,
   `filterExclude`, ...) throws `ValidationError`. TypeScript already rejected this at
   compile time for the old named keys; code that passed `extra: { type: "text" }` must

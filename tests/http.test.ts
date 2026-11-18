@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { NotFoundError } from "../src/errors.js";
-import { HttpClient, raiseForStatus, type FetchFn } from "../src/http.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { APIError, NotFoundError, RateLimitError } from "../src/errors.js";
+import { ensureOk, HttpClient, raiseForStatus, type FetchFn } from "../src/http.js";
 import { createMockFetch, jsonResponse } from "./helpers/mock-fetch.js";
 
 describe("HttpClient repeated params", () => {
@@ -162,6 +162,98 @@ describe("HttpClient retry policy", () => {
     const response = await client.get("https://example.com/x");
     expect(calls).toBe(1);
     expect(response.status).toBe(400);
+  });
+});
+
+describe("HttpClient Retry-After ceiling (maxDelayMs)", () => {
+  const NOW = Date.UTC(2026, 0, 1, 0, 0, 0);
+  const httpDate = (offsetSeconds: number) => new Date(NOW + offsetSeconds * 1000).toUTCString();
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Fails once with `status` + `retryAfter`, then succeeds. */
+  function failOnce(status: number, retryAfter: string) {
+    const state = { calls: 0 };
+    const fetchFn = createMockFetch(() => {
+      state.calls++;
+      if (state.calls === 1) {
+        return new Response("slow down", { status, headers: { "retry-after": retryAfter } });
+      }
+      return jsonResponse({ ok: true });
+    });
+    return { state, fetchFn };
+  }
+
+  async function expectSleepsThenRetries(fetchFn: FetchFn, state: { calls: number }, sleepMs: number) {
+    vi.useFakeTimers({ toFake: ["setTimeout", "Date"], now: NOW });
+    const client = new HttpClient(fetchFn, 30_000, "test-agent", { maxDelayMs: 10_000, jitter: false });
+    const pending = client.get("https://example.com/x");
+    await vi.advanceTimersByTimeAsync(sleepMs - 1);
+    expect(state.calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    const response = await pending;
+    expect(state.calls).toBe(2);
+    expect(response.status).toBe(200);
+  }
+
+  it("honors a seconds Retry-After under the cap", async () => {
+    const { state, fetchFn } = failOnce(429, "3");
+    await expectSleepsThenRetries(fetchFn, state, 3_000);
+  });
+
+  it("honors an HTTP-date Retry-After under the cap", async () => {
+    const { state, fetchFn } = failOnce(429, httpDate(4));
+    await expectSleepsThenRetries(fetchFn, state, 4_000);
+  });
+
+  it("honors a Retry-After exactly at the cap", async () => {
+    const { state, fetchFn } = failOnce(503, "10");
+    await expectSleepsThenRetries(fetchFn, state, 10_000);
+  });
+
+  async function expectNoRetry(status: number, retryAfter: string): Promise<unknown> {
+    vi.useFakeTimers({ toFake: ["setTimeout", "Date"], now: NOW });
+    const { state, fetchFn } = failOnce(status, retryAfter);
+    const client = new HttpClient(fetchFn, 30_000, "test-agent", { maxDelayMs: 10_000 });
+    const response = await client.get("https://example.com/x");
+    expect(state.calls).toBe(1);
+    expect(response.status).toBe(status);
+    expect(vi.getTimerCount()).toBe(0);
+    const error = await ensureOk(response).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    // The body was not discarded, so the error carries it.
+    expect((error as APIError).body).toBe("slow down");
+    return error;
+  }
+
+  it("returns a 429 without sleeping when a seconds Retry-After exceeds the cap", async () => {
+    const error = await expectNoRetry(429, "3600");
+    expect(error).toBeInstanceOf(RateLimitError);
+    expect((error as RateLimitError).retryAfter).toBe("3600");
+  });
+
+  it("returns a 429 without sleeping when an HTTP-date Retry-After exceeds the cap", async () => {
+    const header = httpDate(3600);
+    const error = await expectNoRetry(429, header);
+    expect(error).toBeInstanceOf(RateLimitError);
+    expect((error as RateLimitError).retryAfter).toBe(header);
+  });
+
+  it("returns a 5xx without sleeping when Retry-After exceeds the cap", async () => {
+    const error = await expectNoRetry(503, "11");
+    expect(error).toBeInstanceOf(APIError);
+    expect(error).not.toBeInstanceOf(RateLimitError);
+    expect((error as APIError).statusCode).toBe(503);
+    expect((error as APIError).headers?.["retry-after"]).toBe("11");
+  });
+
+  it.each(["soon", "Infinity", "NaN"])("falls back to capped backoff for an unusable Retry-After (%s)", async (header) => {
+    const { state, fetchFn } = failOnce(429, header);
+    await expectSleepsThenRetries(fetchFn, state, 250);
   });
 });
 

@@ -12,6 +12,12 @@ export type QueryParams = Record<string, QueryParamValue | readonly QueryParamVa
  * `retry: false` on `DiffbotClientOptions`; disable per call with `retryable: false`
  * on a handler's options — required for GET-shaped mutations (e.g. `crawl?delete=1`)
  * that must never be retried blindly.
+ *
+ * `maxDelayMs` caps the exponential backoff and is also the ceiling for a server's
+ * `Retry-After`: if a 429/5xx asks for a longer wait (seconds or HTTP-date form), the
+ * SDK does not sleep or retry and returns that response at once, so the caller gets
+ * `RateLimitError` (or `APIError` for a 5xx) with the header intact
+ * (`RateLimitError.retryAfter`, `APIError.headers["retry-after"]`).
  */
 export interface RetryPolicy {
   maxAttempts?: number;
@@ -47,17 +53,29 @@ function isRetryableStatus(status: number): boolean {
   return status === 429 || status >= 500;
 }
 
-/** Parses `Retry-After` as seconds or an HTTP date; falls back to exponential backoff. */
-function computeDelayMs(attempt: number, retryAfter: string | null, policy: ResolvedRetryPolicy): number {
-  if (retryAfter) {
-    const seconds = Number(retryAfter);
-    if (Number.isFinite(seconds)) {
-      return Math.max(0, seconds * 1000);
-    }
-    const dateMs = Date.parse(retryAfter);
-    if (!Number.isNaN(dateMs)) {
-      return Math.max(0, dateMs - Date.now());
-    }
+/** Parses `Retry-After` as seconds or an HTTP date into a non-negative delay (ms). */
+function parseRetryAfterMs(retryAfter: string | null): number | undefined {
+  if (!retryAfter) return undefined;
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds)) {
+    return Math.max(0, seconds * 1000);
+  }
+  const dateMs = Date.parse(retryAfter);
+  if (!Number.isNaN(dateMs)) {
+    return Math.max(0, dateMs - Date.now());
+  }
+  return undefined;
+}
+
+/**
+ * Delay before the next attempt: a parseable `Retry-After` is honored as given,
+ * otherwise exponential backoff capped at `maxDelayMs`. Returns `null` when
+ * `Retry-After` exceeds `maxDelayMs`, meaning "do not retry; surface the response".
+ */
+function computeDelayMs(attempt: number, retryAfter: string | null, policy: ResolvedRetryPolicy): number | null {
+  const retryAfterMs = parseRetryAfterMs(retryAfter);
+  if (retryAfterMs !== undefined) {
+    return retryAfterMs > policy.maxDelayMs ? null : retryAfterMs;
   }
   const exponential = Math.min(policy.maxDelayMs, policy.baseDelayMs * 2 ** (attempt - 1));
   return policy.jitter ? exponential * (0.5 + Math.random() * 0.5) : exponential;
@@ -172,16 +190,20 @@ export class HttpClient {
         });
       } catch (error) {
         if (policy && attempt < maxAttempts) {
-          await sleep(computeDelayMs(attempt, null, policy));
+          await sleep(computeDelayMs(attempt, null, policy) ?? 0);
           continue;
         }
         throw error;
       }
 
       if (policy && attempt < maxAttempts && isRetryableStatus(response.status)) {
+        const delayMs = computeDelayMs(attempt, response.headers.get("retry-after"), policy);
+        // Retry-After beyond maxDelayMs: don't sleep or retry; the caller raises
+        // RateLimitError/APIError from this response with the header intact.
+        if (delayMs === null) return response;
         // Release the discarded attempt's connection; an unread body pins it in undici.
         await response.body?.cancel().catch(() => undefined);
-        await sleep(computeDelayMs(attempt, response.headers.get("retry-after"), policy));
+        await sleep(delayMs);
         continue;
       }
 

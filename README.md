@@ -91,6 +91,12 @@ const db = new DiffbotClient({ token: "YOUR_TOKEN", retry: false });
 // or: retry: { maxAttempts: 5 }
 ```
 
+`maxDelayMs` (default 5000) caps the backoff and is also the ceiling for `Retry-After`.
+If the server asks for a longer wait (in seconds or as an HTTP date), the SDK does not
+sleep or retry: the call fails at once with `RateLimitError` (`retryAfter` holds the raw
+header) or, for a 5xx, `APIError` (see `headers["retry-after"]`), so you decide when to
+try again.
+
 The transport also accepts a per-call `timeout` (ms) override and a `retryable: false`
 escape hatch; the SDK uses the latter internally for `crawlDeleteJob`, a GET-shaped
 mutation that must not be retried blindly.
