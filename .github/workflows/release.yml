@@ -173,6 +173,26 @@ jobs:
           echo "Publishing ${name}@${VERSION} with dist-tag ${dist_tag} via npm trusted publishing."
           npm publish --access public --provenance --tag "$dist_tag"
 
+      # A final release also moves `next`, so `next` is never behind `latest`.
+      # Uses npm trusted publishing (OIDC) for `npm dist-tag`, which needs npm
+      # >= 11.21.0 / 12.2.0 and "Allow npm dist-tag" enabled on this package's
+      # trusted publisher at npmjs.com (off by default). The version is already
+      # published at this point, so a failure only warns and never fails the run.
+      - name: Point next at final release
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        run: |
+          set -uo pipefail
+          name=$(node -p 'require("./package.json").name')
+          version=$(node -p 'require("./package.json").version')
+          case "$version" in
+            *-*) echo "Prerelease ${version}: next was set by publish."; exit 0 ;;
+          esac
+          if npm dist-tag add "${name}@${version}" next; then
+            echo "next -> ${name}@${version}"
+          else
+            echo "::warning::Could not point next at ${name}@${version}. Enable 'Allow npm dist-tag' on the trusted publisher for ${name} at npmjs.com, or run: npm dist-tag add ${name}@${version} next"
+          fi
+
   release:
     name: Publish GitHub Release
     needs: [verify, publish]
