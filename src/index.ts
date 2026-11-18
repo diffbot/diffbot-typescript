@@ -1,6 +1,20 @@
 export { DiffbotClient, type DiffbotClientOptions } from "./client.js";
 export { resolveTokenFromEnv, type TokenSource } from "./auth.js";
-export { extract } from "./extract.js";
+export { account, verifyToken, type AccountOptions } from "./account.js";
+export {
+  extract,
+  type AnalyzeExtractOptions,
+  type ArticleExtractOptions,
+  type CustomExtractOptions,
+  type DiscussionExtractOptions,
+  type EventExtractOptions,
+  type ExtractOptions,
+  type ImageExtractOptions,
+  type JobExtractOptions,
+  type ListExtractOptions,
+  type ProductExtractOptions,
+  type VideoExtractOptions,
+} from "./extract.js";
 export {
   ANY_OBJECT_SCHEMA,
   RESPONSE_FORMAT_TYPES,
@@ -8,17 +22,22 @@ export {
   askJson,
   extractJson,
   jsonSchemaFormat,
+  type AskJsonOptions,
   type AskOptions,
   type ChatMessage,
+  type ChatRole,
   type ResponseFormat,
   type ResponseFormatType,
 } from "./ask.js";
 export {
   crawl,
   crawlDeleteJob,
+  crawlDownload,
   crawlGetJob,
   crawlListJobs,
   CrawlEventType,
+  type CrawlDownloadOptions,
+  type CrawlDownloadResult,
   type CrawlEvent,
   type CrawlOptions,
 } from "./crawl.js";
@@ -28,8 +47,15 @@ export {
   dqlFetchOntologyText,
   dqlParallel,
   type DqlOptions,
+  type DqlType,
 } from "./kg.js";
-export { entities } from "./nlp.js";
+export {
+  entities,
+  nlp,
+  type EntitiesResponse,
+  type NlpOptions,
+  type NlpResponse,
+} from "./nlp.js";
 export { Ontology } from "./ontology.js";
 export {
   OntologyStore,
@@ -44,9 +70,36 @@ export {
   ValidationError,
   APIError,
   AuthError,
+  NotFoundError,
   RateLimitError,
+  JobError,
   ExtractionError,
 } from "./errors.js";
 export { VERSION } from "./constants.js";
-export type { FetchFn } from "./http.js";
+export type { FetchFn, QueryParams, RetryPolicy } from "./http.js";
 export type { JsonObject } from "./json.js";
+
+// Response/shared types (generated-backed where a spec defines a schema; hand-written
+// in src/types/undocumented.ts otherwise — see that file's header for which is which).
+export type { DqlEntity, DqlResponse, DqlRewrite, ExportFormat } from "./types/dql.js";
+export type { AccountResponse, AccountUsage } from "./types/account.js";
+export type { NaturalLanguageResponse, NlpDocument, NlpField } from "./types/natural-language.js";
+export type { WebSearchResponse, WebSearchResult } from "./types/web-search.js";
+export type {
+  AnalyzeObject,
+  ArticleObject,
+  CrawlDataRecord,
+  CrawlJob,
+  CustomApiObject,
+  DiscussionObject,
+  EventObject,
+  ExtractResponse,
+  FieldMeta,
+  ImageObject,
+  JobObject,
+  JobStatus,
+  ListObject,
+  OntologyDocument,
+  ProductObject,
+  VideoObject,
+} from "./types/undocumented.js";

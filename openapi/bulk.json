@@ -1,0 +1,760 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Bulk Extract API",
+        "termsOfService": "https://www.diffbot.com/terms/",
+        "contact": {
+            "email": "support@diffbot.com"
+        },
+        "version": "1.1"
+    },
+    "servers": [
+        {
+            "url": "https://api.diffbot.com/v3"
+        }
+    ],
+    "paths": {
+        "/bulk": {
+            "post": {
+                "summary": "Create a Bulk Extract Job",
+                "description": "Extract a list of URLs asynchronously",
+                "operationId": "create-a-bulk-job",
+                "requestBody": {
+                    "content": {
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "name",
+                                    "urls",
+                                    "apiUrl"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "Job name. This should be a unique identifier and will be used to modify your bulk job and retrieve its output."
+                                    },
+                                    "urls": {
+                                        "type": "string",
+                                        "description": "Space-delimited list of URLs to process. If you are on the Startup plan, jobs must contain at least 50 URLs."
+                                    },
+                                    "apiUrl": {
+                                        "type": "string",
+                                        "description": "The full Extract (or Custom) API to be used for each URL. For instance, to process each URL via the Article API, supply `https://api.diffbot.com/v3/article`. You may also include API parameters, e.g. `https://api.diffbot.com/v3/article?fields=meta,tags`."
+                                    },
+                                    "customHeaders": {
+                                        "type": "string",
+                                        "description": "Set custom headers to be used for processing each URL. Send multiple `customHeaders` values in your POST body, with header keys/values delimited by a colon (and URL-encoded)."
+                                    },
+                                    "notifyEmail": {
+                                        "type": "string",
+                                        "description": "Send a message to this email address when the bulk job completes."
+                                    },
+                                    "notifyWebhook": {
+                                        "type": "string",
+                                        "description": "Pass a URL to be notified when the bulk job completes. You will receive a POST with a JSON response."
+                                    },
+                                    "obeyRobots": {
+                                        "type": "string",
+                                        "description": "Pass `obeyRobots=0` to ignore a site's robots.txt instructions."
+                                    },
+                                    "repeat": {
+                                        "type": "number",
+                                        "description": "Specify the number of days as a floating-point (e.g. `repeat=7.0`) to repeat this job. By default bulk jobs will not be repeated.",
+                                        "format": "float"
+                                    },
+                                    "pageProcessPattern": {
+                                        "type": "string",
+                                        "description": "Enter ||-separated strings to limit pages processed to those whose HTML contains any of the content strings. If a page does not contain at least one of the strings, it will be ignored."
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Bulk job created",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Result": {
+                                        "value": "{\n    \"response\": \"Successfully added urls for spidering.\",\n    \"jobs\": [\n        {\n            \"jobStatus\": {\n                \"message\": \"Job is initializing.\",\n                \"status\": 0\n            },\n            \"maxHops\": -1,\n            \"downloadJson\": \"...json\",\n            \"urlProcessPattern\": \"\",\n            \"jobCompletionTimeUTC\": 0,\n            \"maxRounds\": -1,\n            \"type\": \"bulk\",\n            \"pageCrawlSuccessesThisRound\": 0,\n            \"urlCrawlRegEx\": \"\",\n            \"pageProcessPattern\": \"\",\n            \"apiUrl\": \"https://api.diffbot.com/v3/analyze\",\n            \"useCanonical\": 1,\n            \"jobCreationTimeUTC\": 1649950325,\n            \"repeat\": 0,\n            \"downloadUrls\": \"...csv\",\n            \"obeyRobots\": 1,\n            \"roundsCompleted\": 0,\n            \"pageCrawlAttempts\": 0,\n            \"notifyWebhook\": \"\",\n            \"pageProcessSuccessesThisRound\": 0,\n            \"customHeaders\": {},\n            \"objectsFound\": 0,\n            \"roundStartTime\": 0,\n            \"urlCrawlPattern\": \"\",\n            \"seedRecrawlFrequency\": -1,\n            \"urlProcessRegEx\": \"\",\n            \"pageProcessSuccesses\": 0,\n            \"urlsHarvested\": 0,\n            \"crawlDelay\": -1,\n            \"currentTime\": 1649950325,\n            \"useProxies\": 0,\n            \"sentJobDoneNotification\": 0,\n            \"currentTimeUTC\": 1649950325,\n            \"name\": \"bulkTest\",\n            \"notifyEmail\": \"\",\n            \"pageCrawlSuccesses\": 0,\n            \"pageProcessAttempts\": 0\n        }\n    ]\n}"
+                                    }
+                                },
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "response": {
+                                            "type": "string",
+                                            "example": "Successfully added urls for spidering."
+                                        },
+                                        "jobs": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "jobStatus": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "message": {
+                                                                "type": "string",
+                                                                "example": "Job is initializing."
+                                                            },
+                                                            "status": {
+                                                                "type": "integer",
+                                                                "example": 0
+                                                            }
+                                                        }
+                                                    },
+                                                    "maxHops": {
+                                                        "type": "integer",
+                                                        "example": -1
+                                                    },
+                                                    "downloadJson": {
+                                                        "type": "string",
+                                                        "example": "...json"
+                                                    },
+                                                    "urlProcessPattern": {
+                                                        "type": "string",
+                                                        "example": ""
+                                                    },
+                                                    "jobCompletionTimeUTC": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "maxRounds": {
+                                                        "type": "integer",
+                                                        "example": -1
+                                                    },
+                                                    "type": {
+                                                        "type": "string",
+                                                        "example": "bulk"
+                                                    },
+                                                    "pageCrawlSuccessesThisRound": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "urlCrawlRegEx": {
+                                                        "type": "string",
+                                                        "example": ""
+                                                    },
+                                                    "pageProcessPattern": {
+                                                        "type": "string",
+                                                        "example": ""
+                                                    },
+                                                    "apiUrl": {
+                                                        "type": "string",
+                                                        "example": "https://api.diffbot.com/v3/analyze"
+                                                    },
+                                                    "useCanonical": {
+                                                        "type": "integer",
+                                                        "example": 1
+                                                    },
+                                                    "jobCreationTimeUTC": {
+                                                        "type": "integer",
+                                                        "example": 1649950325
+                                                    },
+                                                    "repeat": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "downloadUrls": {
+                                                        "type": "string",
+                                                        "example": "...csv"
+                                                    },
+                                                    "obeyRobots": {
+                                                        "type": "integer",
+                                                        "example": 1
+                                                    },
+                                                    "roundsCompleted": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "pageCrawlAttempts": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "notifyWebhook": {
+                                                        "type": "string",
+                                                        "example": ""
+                                                    },
+                                                    "pageProcessSuccessesThisRound": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "customHeaders": {
+                                                        "type": "object",
+                                                        "properties": {}
+                                                    },
+                                                    "objectsFound": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "roundStartTime": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "urlCrawlPattern": {
+                                                        "type": "string",
+                                                        "example": ""
+                                                    },
+                                                    "seedRecrawlFrequency": {
+                                                        "type": "integer",
+                                                        "example": -1
+                                                    },
+                                                    "urlProcessRegEx": {
+                                                        "type": "string",
+                                                        "example": ""
+                                                    },
+                                                    "pageProcessSuccesses": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "urlsHarvested": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "crawlDelay": {
+                                                        "type": "integer",
+                                                        "example": -1
+                                                    },
+                                                    "currentTime": {
+                                                        "type": "integer",
+                                                        "example": 1649950325
+                                                    },
+                                                    "useProxies": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "sentJobDoneNotification": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "currentTimeUTC": {
+                                                        "type": "integer",
+                                                        "example": 1649950325
+                                                    },
+                                                    "name": {
+                                                        "type": "string",
+                                                        "example": "bulkTest"
+                                                    },
+                                                    "notifyEmail": {
+                                                        "type": "string",
+                                                        "example": ""
+                                                    },
+                                                    "pageCrawlSuccesses": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "pageProcessAttempts": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token missing or invalid",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Result": {
+                                        "value": "{\n    \"errorCode\": 401,\n    \"error\": \"Not authorized API token.\"\n}"
+                                    }
+                                },
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "errorCode": {
+                                            "type": "integer",
+                                            "example": 401
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "example": "Not authorized API token."
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "No URLs were found in the request",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "No URLs Found": {
+                                        "value": "{\n    \"errorCode\": \"500\",\n    \"error\": \"no urls found\"\n}"
+                                    }
+                                },
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "errorCode": {
+                                            "type": "string",
+                                            "example": "500"
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "example": "no urls found"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "505": {
+                        "description": "Job name rejected \u2014 names can consist only of letters, numbers, underscores, or hyphens",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Malformed Crawl Name": {
+                                        "value": "{\n    \"errorCode\": 505,\n    \"error\": \"Crawl names can consist only of letters, numbers, underscores or hyphens.\"\n}"
+                                    }
+                                },
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "errorCode": {
+                                            "type": "integer",
+                                            "example": 505
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "example": "Crawl names can consist only of letters, numbers, underscores or hyphens."
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "tokenscheme": []
+                    }
+                ]
+            },
+            "get": {
+                "summary": "Manage a Bulk Extract Job",
+                "description": "Pause, delete, restart, or view the status of a bulk job.",
+                "operationId": "pause-delete-or-restart-a-bulk-job",
+                "parameters": [
+                    {
+                        "name": "name",
+                        "in": "query",
+                        "description": "Job name as defined when the bulk job was created.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "pause",
+                        "in": "query",
+                        "description": "Pass `pause=1` to pause a bulk job. Pass `pause=0` to resume a paused job.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "restart",
+                        "in": "query",
+                        "description": "Pass `restart=1` to restart a bulk job. This will erase all processed data and re-process all of the submitted URLs.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "delete",
+                        "in": "query",
+                        "description": "Pass `delete=1 `to delete a job, and all associated data, completely.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Job managed",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Restarted Bulk Job": {
+                                        "value": "{\n    \"response\": \"Successfully added urls for spidering.\",\n    \"jobs\": [\n        {\n            \"jobStatus\": {\n                \"message\": \"Job is initializing.\",\n                \"status\": 0\n            },\n            \"maxHops\": -1,\n            \"downloadJson\": \"...json\",\n            \"urlProcessPattern\": \"\",\n            \"jobCompletionTimeUTC\": 0,\n            \"maxRounds\": -1,\n            \"type\": \"bulk\",\n            \"pageCrawlSuccessesThisRound\": 0,\n            \"urlCrawlRegEx\": \"\",\n            \"pageProcessPattern\": \"\",\n            \"apiUrl\": \"https://api.diffbot.com/v3/analyze\",\n            \"useCanonical\": 1,\n            \"jobCreationTimeUTC\": 1649950325,\n            \"repeat\": 0,\n            \"downloadUrls\": \"...csv\",\n            \"obeyRobots\": 1,\n            \"roundsCompleted\": 0,\n            \"pageCrawlAttempts\": 0,\n            \"notifyWebhook\": \"\",\n            \"pageProcessSuccessesThisRound\": 0,\n            \"customHeaders\": {},\n            \"objectsFound\": 0,\n            \"roundStartTime\": 0,\n            \"urlCrawlPattern\": \"\",\n            \"seedRecrawlFrequency\": -1,\n            \"urlProcessRegEx\": \"\",\n            \"pageProcessSuccesses\": 0,\n            \"urlsHarvested\": 0,\n            \"crawlDelay\": -1,\n            \"currentTime\": 1649950325,\n            \"useProxies\": 0,\n            \"sentJobDoneNotification\": 0,\n            \"currentTimeUTC\": 1649950325,\n            \"name\": \"bulkTest\",\n            \"notifyEmail\": \"\",\n            \"pageCrawlSuccesses\": 0,\n            \"pageProcessAttempts\": 0\n        }\n    ]\n}"
+                                    },
+                                    "Paused Bulk Job": {
+                                        "value": "{\n    \"response\": \"Successfully added urls for spidering.\",\n    \"jobs\": [\n        {\n            \"jobStatus\": {\n              \"message\": \"Job paused.\",\n              \"status\": 6\n            },\n            \"maxHops\": -1,\n            \"downloadJson\": \"...json\",\n            \"urlProcessPattern\": \"\",\n            \"jobCompletionTimeUTC\": 0,\n            \"maxRounds\": -1,\n            \"type\": \"bulk\",\n            \"pageCrawlSuccessesThisRound\": 0,\n            \"urlCrawlRegEx\": \"\",\n            \"pageProcessPattern\": \"\",\n            \"apiUrl\": \"https://api.diffbot.com/v3/analyze\",\n            \"useCanonical\": 1,\n            \"jobCreationTimeUTC\": 1649950325,\n            \"repeat\": 0,\n            \"downloadUrls\": \"...csv\",\n            \"obeyRobots\": 1,\n            \"roundsCompleted\": 0,\n            \"pageCrawlAttempts\": 0,\n            \"notifyWebhook\": \"\",\n            \"pageProcessSuccessesThisRound\": 0,\n            \"customHeaders\": {},\n            \"objectsFound\": 0,\n            \"roundStartTime\": 0,\n            \"urlCrawlPattern\": \"\",\n            \"seedRecrawlFrequency\": -1,\n            \"urlProcessRegEx\": \"\",\n            \"pageProcessSuccesses\": 0,\n            \"urlsHarvested\": 0,\n            \"crawlDelay\": -1,\n            \"currentTime\": 1649950325,\n            \"useProxies\": 0,\n            \"sentJobDoneNotification\": 0,\n            \"currentTimeUTC\": 1649950325,\n            \"name\": \"bulkTest\",\n            \"notifyEmail\": \"\",\n            \"pageCrawlSuccesses\": 0,\n            \"pageProcessAttempts\": 0\n        }\n    ]\n}"
+                                    },
+                                    "Deleted Bulk Job": {
+                                        "value": "{\n  \"response\": \"Successfully deleted job.\"\n}"
+                                    },
+                                    "Completed Bulk Job": {
+                                        "value": "{\n    \"jobs\": [\n        {\n            \"jobStatus\": {\n                \"message\": \"Job has completed and no repeat is scheduled.\",\n                \"status\": 9\n            },\n            \"maxHops\": -1,\n            \"downloadJson\": \"...json\",\n            \"urlProcessPattern\": \"\",\n            \"jobCompletionTimeUTC\": 0,\n            \"maxRounds\": -1,\n            \"type\": \"bulk\",\n            \"pageCrawlSuccessesThisRound\": 0,\n            \"urlCrawlRegEx\": \"\",\n            \"pageProcessPattern\": \"\",\n            \"apiUrl\": \"https://api.diffbot.com/v3/analyze\",\n            \"useCanonical\": 1,\n            \"jobCreationTimeUTC\": 1649950325,\n            \"repeat\": 0,\n            \"downloadUrls\": \"...csv\",\n            \"obeyRobots\": 1,\n            \"roundsCompleted\": 0,\n            \"pageCrawlAttempts\": 0,\n            \"notifyWebhook\": \"\",\n            \"pageProcessSuccessesThisRound\": 0,\n            \"customHeaders\": {},\n            \"objectsFound\": 0,\n            \"roundStartTime\": 0,\n            \"urlCrawlPattern\": \"\",\n            \"seedRecrawlFrequency\": -1,\n            \"urlProcessRegEx\": \"\",\n            \"pageProcessSuccesses\": 0,\n            \"urlsHarvested\": 0,\n            \"crawlDelay\": -1,\n            \"currentTime\": 1649950325,\n            \"useProxies\": 0,\n            \"sentJobDoneNotification\": 0,\n            \"currentTimeUTC\": 1649950325,\n            \"name\": \"bulkTest\",\n            \"notifyEmail\": \"\",\n            \"pageCrawlSuccesses\": 0,\n            \"pageProcessAttempts\": 0\n        }\n    ]\n}"
+                                    }
+                                },
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "response": {
+                                            "type": "string",
+                                            "example": "Successfully added urls for spidering."
+                                        },
+                                        "jobs": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "jobStatus": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "message": {
+                                                                "type": "string",
+                                                                "example": "Job is initializing."
+                                                            },
+                                                            "status": {
+                                                                "type": "integer",
+                                                                "example": 0
+                                                            }
+                                                        }
+                                                    },
+                                                    "maxHops": {
+                                                        "type": "integer",
+                                                        "example": -1
+                                                    },
+                                                    "downloadJson": {
+                                                        "type": "string",
+                                                        "example": "...json"
+                                                    },
+                                                    "urlProcessPattern": {
+                                                        "type": "string",
+                                                        "example": ""
+                                                    },
+                                                    "jobCompletionTimeUTC": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "maxRounds": {
+                                                        "type": "integer",
+                                                        "example": -1
+                                                    },
+                                                    "type": {
+                                                        "type": "string",
+                                                        "example": "bulk"
+                                                    },
+                                                    "pageCrawlSuccessesThisRound": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "urlCrawlRegEx": {
+                                                        "type": "string",
+                                                        "example": ""
+                                                    },
+                                                    "pageProcessPattern": {
+                                                        "type": "string",
+                                                        "example": ""
+                                                    },
+                                                    "apiUrl": {
+                                                        "type": "string",
+                                                        "example": "https://api.diffbot.com/v3/analyze"
+                                                    },
+                                                    "useCanonical": {
+                                                        "type": "integer",
+                                                        "example": 1
+                                                    },
+                                                    "jobCreationTimeUTC": {
+                                                        "type": "integer",
+                                                        "example": 1649950325
+                                                    },
+                                                    "repeat": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "downloadUrls": {
+                                                        "type": "string",
+                                                        "example": "...csv"
+                                                    },
+                                                    "obeyRobots": {
+                                                        "type": "integer",
+                                                        "example": 1
+                                                    },
+                                                    "roundsCompleted": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "pageCrawlAttempts": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "notifyWebhook": {
+                                                        "type": "string",
+                                                        "example": ""
+                                                    },
+                                                    "pageProcessSuccessesThisRound": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "customHeaders": {
+                                                        "type": "object",
+                                                        "properties": {}
+                                                    },
+                                                    "objectsFound": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "roundStartTime": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "urlCrawlPattern": {
+                                                        "type": "string",
+                                                        "example": ""
+                                                    },
+                                                    "seedRecrawlFrequency": {
+                                                        "type": "integer",
+                                                        "example": -1
+                                                    },
+                                                    "urlProcessRegEx": {
+                                                        "type": "string",
+                                                        "example": ""
+                                                    },
+                                                    "pageProcessSuccesses": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "urlsHarvested": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "crawlDelay": {
+                                                        "type": "integer",
+                                                        "example": -1
+                                                    },
+                                                    "currentTime": {
+                                                        "type": "integer",
+                                                        "example": 1649950325
+                                                    },
+                                                    "useProxies": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "sentJobDoneNotification": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "currentTimeUTC": {
+                                                        "type": "integer",
+                                                        "example": 1649950325
+                                                    },
+                                                    "name": {
+                                                        "type": "string",
+                                                        "example": "bulkTest"
+                                                    },
+                                                    "notifyEmail": {
+                                                        "type": "string",
+                                                        "example": ""
+                                                    },
+                                                    "pageCrawlSuccesses": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    },
+                                                    "pageProcessAttempts": {
+                                                        "type": "integer",
+                                                        "example": 0
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "No job found by that name",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Bulk Job Not Found": {
+                                        "value": "{\n    \"errorCode\": \"500\",\n    \"error\": \"no collection record.\"\n}"
+                                    }
+                                },
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "errorCode": {
+                                            "type": "string",
+                                            "example": "500"
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "example": "no collection record."
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "tokenscheme": []
+                    }
+                ]
+            }
+        },
+        "/bulk/data": {
+            "get": {
+                "summary": "Retrieve Bulk Extract Job Data",
+                "description": "Download the extracted results of a bulk job",
+                "operationId": "retrieve-bulk-job-data",
+                "parameters": [
+                    {
+                        "name": "name",
+                        "in": "query",
+                        "description": "Name of the bulk job whose data you wish to download.",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "format",
+                        "in": "query",
+                        "description": "Request `format=csv` to download the extracted data in CSV format (default: `json`). Note that CSV files will only contain top-level fields.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "description": "Request `type=urls` to retrieve the [URL Report (CSV)](/docs/crawl/faq/url-report).",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "num",
+                        "in": "query",
+                        "description": "Pass an integer value (e.g. `num=100`) to request a subset of URLs, most recently processed first.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "security": [
+                    {
+                        "tokenscheme": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The bulk job's extracted data",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Result": {
+                                        "value": "[\n    {\n        \"col\": \"docs-bulkdata-sample\",\n        \"parentUrl\": \"https://example.com\",\n        \"pageUrl\": \"https://example.com/\",\n        \"id\": 6526070754824580571,\n        \"type\": \"other\",\n        \"title\": \"Example Domain\",\n        \"content\": \"Example Domain \\n\\n# Example Domain \\n\\nThis domain is for use in documentation examples without needing permission. Avoid use in operations. \\n\\n[Learn more](https://iana.org/domains/example)\",\n        \"token\": \"<REDACTED>\",\n        \"timestamp\": \"2026-07-24T23:03:01Z\"\n    }\n]"
+                                    }
+                                },
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "required": [
+                                            "col",
+                                            "parentUrl",
+                                            "pageUrl",
+                                            "id",
+                                            "type",
+                                            "token",
+                                            "timestamp"
+                                        ],
+                                        "properties": {
+                                            "col": {
+                                                "description": "Name of the Crawl or Bulk job this record was extracted from",
+                                                "type": "string",
+                                                "example": "docs-bulkdata-sample"
+                                            },
+                                            "parentUrl": {
+                                                "description": "Immediate parent contained a link to this record",
+                                                "type": "string",
+                                                "example": "https://example.com"
+                                            },
+                                            "pageUrl": {
+                                                "description": "The URL of this record",
+                                                "type": "string",
+                                                "example": "https://example.com/"
+                                            },
+                                            "id": {
+                                                "description": "A reference",
+                                                "type": "integer",
+                                                "example": 6526070754824580571
+                                            },
+                                            "type": {
+                                                "description": "A standard entity type assigned either on job creation or classified by [Analyze API](/docs/extract/analyze). All other keys on this job record follow the [ontology](/docs/ontology/) set by its type.",
+                                                "type": "string",
+                                                "example": "other"
+                                            },
+                                            "token": {
+                                                "description": "Your token",
+                                                "type": "string",
+                                                "example": "<REDACTED>"
+                                            },
+                                            "timestamp": {
+                                                "description": "Time when record was crawled, in ISO 8601 format.",
+                                                "type": "string",
+                                                "example": "2026-07-24T23:03:01Z"
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "No job found by that name",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Result": {
+                                        "value": "{\n    \"errorCode\": 400,\n    \"error\": \"No collection record\"\n}"
+                                    }
+                                },
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "errorCode": {
+                                            "type": "integer",
+                                            "example": 400
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "example": "No collection record"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "tokenscheme": {
+                "type": "apiKey",
+                "name": "token",
+                "in": "query"
+            }
+        }
+    }
+}

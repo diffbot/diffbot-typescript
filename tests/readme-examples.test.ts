@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   CrawlEventType,
   DiffbotClient,
+  account,
   ask,
   crawl,
+  crawlDownload,
+  crawlGetJob,
   dql,
   entities,
+  nlp,
   extract,
+  verifyToken,
   webSearch,
 } from "../src/index.js";
 import { createMockFetch, jsonResponse, sseResponse } from "./helpers/mock-fetch.js";
@@ -52,11 +57,67 @@ describe("README examples", () => {
     expect(events[0]!.eventType).toBe(CrawlEventType.JobCreated);
   });
 
+  it("extract with options", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      fetch: createMockFetch((req) => {
+        expect(req.url).toBe("https://api.diffbot.com/v3/article");
+        expect(req.params.get("fields")).toBe("links,meta");
+        expect(req.params.get("timeout")).toBe("60000");
+        expect(req.params.get("naturalLanguage")).toBe("entities,sentiment");
+        return jsonResponse({ objects: [{ title: "T" }] });
+      }),
+    });
+    const article = await extract(db, "https://www.example.com", "article", "json", {
+      fields: ["links", "meta"],
+      timeout: 60_000,
+      naturalLanguage: ["entities", "sentiment"],
+    });
+    expect(article.objects).toHaveLength(1);
+  });
+
+  it("verifyToken and account", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      fetch: createMockFetch((req) => {
+        expect(req.url).toBe("https://api.diffbot.com/v4/account");
+        return jsonResponse({ plan: "free", usage: [] });
+      }),
+    });
+    expect(await verifyToken(db)).toBe(true);
+    const { plan, usage } = await account(db, { days: 7 });
+    expect(plan).toBe("free");
+    expect(usage).toEqual([]);
+  });
+
+  it("crawl without watch, then crawlGetJob and crawlDownload", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      fetch: createMockFetch((req) => {
+        if (req.url.endsWith("/crawl/data")) {
+          return req.params.get("format") === "csv"
+            ? new Response("pageUrl\nhttps://example.com/\n")
+            : jsonResponse([{ pageUrl: "https://example.com/" }]);
+        }
+        return jsonResponse({ jobs: [{ name: "my-job", jobStatus: { status: 9 } }] });
+      }),
+    });
+    for await (const _ of crawl(db, "https://www.example.com", { jobName: "my-job" })) {
+      void _;
+    }
+    const job = await crawlGetJob(db, "my-job");
+    expect(job?.jobStatus?.status).toBe(9);
+    const records = await crawlDownload(db, "my-job");
+    expect(records).toEqual([{ pageUrl: "https://example.com/" }]);
+    expect(await crawlDownload(db, "my-job", { format: "csv" })).toContain("pageUrl");
+  });
+
   it("dql", async () => {
     const db = new DiffbotClient({
       token: "test-token",
       fetch: createMockFetch((req) => {
-        expect(req.params.get("query")).toContain("Diffbot");
+        expect(req.method).toBe("POST");
+        expect(req.body).toContain("Diffbot");
         return jsonResponse({ data: [{ entity: { name: "Diffbot" } }] });
       }),
     });
@@ -83,6 +144,45 @@ describe("README examples", () => {
     expect(searchResults[0]!.title).toBe("Diffbot");
   });
 
+  it("dql type crawl with col", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      fetch: createMockFetch((req) => {
+        expect(JSON.parse(req.body ?? "{}")).toEqual({ query: "title:Pricing", size: 5, type: "crawl", col: "my-job" });
+        return jsonResponse({ data: [] });
+      }),
+    });
+    const pages = await dql(db, "title:Pricing", { type: "crawl", col: "my-job", size: 5 });
+    expect(pages.data).toEqual([]);
+  });
+
+  it("webSearch with multiple text values", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      fetch: createMockFetch((req) => {
+        expect(req.params.getAll("text")).toEqual(["diffbot knowledge graph", "diffbot extract api"]);
+        expect(req.params.get("size")).toBe("3");
+        return jsonResponse({ search_results: [] });
+      }),
+    });
+    await webSearch(db, ["diffbot knowledge graph", "diffbot extract api"], { numResults: 3 });
+  });
+
+  it("crawl with customHeaders array", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      fetch: createMockFetch((req) => {
+        expect(req.params.getAll("customHeaders")).toEqual(["Accept-Language:en-us", "X-Test:1"]);
+        expect(req.params.get("urlProcessRegEx")).toBe("/products/");
+        return jsonResponse({ jobs: [{ name: "j" }] });
+      }),
+    });
+    await crawl(db, "https://www.example.com", {
+      urlProcessRegEx: "/products/",
+      customHeaders: ["Accept-Language:en-us", "X-Test:1"],
+    }).next();
+  });
+
   it("entities", async () => {
     const db = new DiffbotClient({
       token: "test-token",
@@ -105,6 +205,53 @@ describe("README examples", () => {
     const entityList = result.entities as Array<Record<string, unknown>>;
     expect(entityList).toHaveLength(2);
     expect(result.sentiment).toBe(0.3);
+  });
+
+  it("nlp", async () => {
+    const db = new DiffbotClient({
+      token: "test-token",
+      fetch: createMockFetch((req) => {
+        expect(req.params.get("fields")).toBe("summary,language");
+        const doc = (JSON.parse(req.body ?? "[]") as Array<Record<string, unknown>>)[0]!;
+        expect(doc.format).toBe("plain text with title");
+        expect(doc.customSummary).toEqual({ maxNumberOfSentences: 1 });
+        return jsonResponse([{ summary: "Apple reports record earnings.", language: "en" }]);
+      }),
+    });
+    const result = await nlp(db, "Headline\nApple CEO Tim Cook announced record quarterly earnings.", {
+      fields: ["summary", "language"],
+      format: "plain text with title",
+      documentType: "news article",
+      customSummary: { maxNumberOfSentences: 1 },
+    });
+    expect(result.summary).toBe("Apple reports record earnings.");
+    expect(result.language).toBe("en");
+  });
+
+  it("apiBase points every api.diffbot.com endpoint at a staging host", async () => {
+    const staging = new DiffbotClient({
+      token: "test-token",
+      apiBase: "https://staging.example.com",
+      fetch: createMockFetch((req) => {
+        expect(req.url).toBe("https://staging.example.com/v3/analyze");
+        return jsonResponse({ objects: [] });
+      }),
+    });
+    await extract(staging, "https://news.ycombinator.com");
+  });
+
+  it("retry: false disables retries", async () => {
+    let calls = 0;
+    const db = new DiffbotClient({
+      token: "test-token",
+      retry: false,
+      fetch: createMockFetch(() => {
+        calls++;
+        return new Response("", { status: 503 });
+      }),
+    });
+    await expect(dql(db, "type:Organization")).rejects.toMatchObject({ statusCode: 503 });
+    expect(calls).toBe(1);
   });
 
   it("extract with await using", async () => {

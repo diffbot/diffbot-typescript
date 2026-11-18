@@ -1,0 +1,1196 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Crawl API",
+    "termsOfService": "https://www.diffbot.com/terms/",
+    "contact": {
+      "email": "support@diffbot.com"
+    },
+    "version": "1.1"
+  },
+  "servers": [
+    {
+      "url": "https://api.diffbot.com/v3"
+    }
+  ],
+  "paths": {
+    "/crawl": {
+      "post": {
+        "summary": "Create a Crawl",
+        "description": "Create and start a job to spider and extract pages through a site.",
+        "operationId": "create-a-crawl",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "seeds",
+                  "apiUrl"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Job name. This should be a unique identifier and can be used to modify your crawl or retrieve its output."
+                  },
+                  "seeds": {
+                    "type": "string",
+                    "description": "Seed URL(s). Must be [URL encoded](https://en.wikipedia.org/wiki/Percent-encoding). Separate multiple URLs with whitespace to spider multiple sites within the same crawl. If the seed contains a non-www subdomain (\"https://blog.diffbot.com\" or \"https://docs.diffbot.com\") Crawl will restrict spidering to the specified **subdomain**."
+                  },
+                  "apiUrl": {
+                    "type": "string",
+                    "description": "Full Extract API URL through which to process pages. E.g., `&apiUrl=https://api.diffbot.com/v3/analyze` to process matching links via the Analyze API, which will automatically determine the page type to extract as. The Extract API URL can include querystring parameters to tailor the output.\n\nFor example, `&apiUrl=https://api.diffbot.com/v3/product?fields=querystring,meta` will process matching links using the Product API, and also return the querystring and meta fields."
+                  },
+                  "customHeaders": {
+                    "type": "string",
+                    "description": "Set multiple custom headers to be used while crawling and processing pages sent to Diffbot APIs. Each header should be sent in its own `customHeaders` argument, with a colon delimiting the header name and value, and should be URL-encoded. For example, `&customHeaders=Accept-Language%3Aen-us`. [See more on using custom headers](/docs/extract/custom-headers)."
+                  },
+                  "useCanonical": {
+                    "type": "integer",
+                    "description": "Pass `useCanonical=0` to disable deduplication of pages based on a canonical link definition. [See more](/products/crawl/faq/duplicate-content).",
+                    "default": 1
+                  },
+                  "obeyRobots": {
+                    "type": "integer",
+                    "description": "Pass `obeyRobots=0` to ignore a site's robots.txt instructions.",
+                    "default": 1
+                  },
+                  "restrictDomain": {
+                    "type": "integer",
+                    "description": "Pass `restrictDomain=0` to allow limited crawling across subdomains/domains. [See more](/products/crawl/faq/restrict-to-domains).",
+                    "default": 1
+                  },
+                  "useProxies": {
+                    "type": "integer",
+                    "description": "Set value to `1` to force the use of proxy IPs for the crawl. This will utilize proxy servers for both crawling and processing of pages.",
+                    "default": 0
+                  },
+                  "maxHops": {
+                    "type": "integer",
+                    "description": "Specify the depth of your crawl. A `maxHops=0` will limit **processing** to the seed URL(s) only -- no other links will be processed; `maxHops=1` will process all (otherwise matching) pages whose links appear on seed URL(s); `maxHops=2` will process pages whose links appear on those pages; and so on.\n\nBy default (`maxHops=-1`) Crawl will crawl and process links at any depth.",
+                    "default": -1
+                  },
+                  "notifyEmail": {
+                    "type": "string",
+                    "description": "Send a message to this email address when the crawl hits the `maxToCrawl` or `maxToProcess` limit, or when the crawl completes."
+                  },
+                  "notifyWebhook": {
+                    "type": "string",
+                    "description": "Pass a URL to be notified when the crawl hits the `maxToCrawl` or `maxToProcess` limit, or when the crawl completes. You will receive a POST with `X-Crawl-Name` and `X-Crawl-Status` in the headers, and the job's JSON metadata in the POST body. Note that in webhook POSTs the parent `jobs` will not be sent\u2014only the individual job object will be returned."
+                  },
+                  "repeat": {
+                    "type": "number",
+                    "description": "Specify the number of days as a floating-point (e.g. `repeat=7.0`) to repeat this crawl. By default crawls will not be repeated."
+                  },
+                  "seedRecrawlFrequency": {
+                    "type": "number",
+                    "description": "Useful for specifying a frequency, in number of days, to recrawl seed urls, which is independent of the overall recrawl frequency given by `repeat`. Defaults to `seedRecrawlFrequency=-1` to use the default frequency.",
+                    "default": -1
+                  },
+                  "maxRounds": {
+                    "type": "integer",
+                    "description": "Specify the maximum number of crawl repeats. By default (`maxRounds=0`) repeating crawls will continue indefinitely.",
+                    "default": 0
+                  },
+                  "urlCrawlPattern": {
+                    "type": "string",
+                    "description": "Specify ||-separated **strings** to limit pages crawled to those whose URLs contain *any* of the content strings. You can use the exclamation point to specify a negative string, e.g. `!product` to exclude URLs containing the string \"product,\" and the `^` and `$` characters to limit matches to the beginning or end of the URL.\n\nThe use of a `urlCrawlPattern` will allow Crawl to spider outside of the seed domain; it will follow all matching URLs regardless of domain."
+                  },
+                  "urlCrawlRegEx": {
+                    "type": "string",
+                    "description": "Specify a regular expression to limit pages **crawled** to those URLs that contain a match to your expression. This will override any `urlCrawlPattern` value."
+                  },
+                  "maxToCrawl": {
+                    "type": "integer",
+                    "description": "Specify max pages to spider. Default: 100,000.",
+                    "default": 100000
+                  },
+                  "maxToCrawlPerSubdomain": {
+                    "type": "integer",
+                    "description": "Specify max pages to spider per subdomain. Default: no limit (-1)",
+                    "default": -1
+                  },
+                  "crawlDelay": {
+                    "type": "number",
+                    "description": "Wait this many seconds between each URL crawled from a single IP address. Specify the number of seconds as an integer or floating-point number (e.g., `crawlDelay=0.25`)."
+                  },
+                  "urlProcessPattern": {
+                    "type": "string",
+                    "description": "Specify ||-separated **strings** to limit pages processed to those whose URLs contain *any* of the content strings. You can use the exclamation point to specify a negative string, e.g. `!/category` to exclude URLs containing the string \"/category,\" and the `^` and `$` characters to limit matches to the beginning or end of the URL."
+                  },
+                  "urlProcessRegEx": {
+                    "type": "string",
+                    "description": "Specify a regular expression to limit pages **processed** to those URLs that contain a match to your expression. This will override any `urlProcessPattern` value."
+                  },
+                  "pageProcessPattern": {
+                    "type": "string",
+                    "description": "Specify ||-separated strings to limit pages **processed** to those whose HTML contains *any* of the content strings."
+                  },
+                  "maxToProcess": {
+                    "type": "integer",
+                    "description": "Specify max pages to process through Diffbot APIs. Default: 100,000.",
+                    "default": 100000
+                  },
+                  "maxToProcessPerSubdomain": {
+                    "type": "integer",
+                    "description": "Specify max pages to process per subdomain. Default: no limit (-1)",
+                    "default": -1
+                  },
+                  "onlyProcessIfNew": {
+                    "type": "integer",
+                    "description": "By default repeat crawls will only process new (previously unprocessed) pages. Set to 0 (`onlyProcessIfNew=0`) to process all content on repeat crawls.",
+                    "default": 1
+                  }
+                }
+              },
+              "examples": {
+                "Request Example": {
+                  "value": {
+                    "name": "test-crawl",
+                    "seeds": "https://example.com",
+                    "apiUrl": "https://api.diffbot.com/v3/analyze"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Crawl job created",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{\n  \"response\": \"Successfully added urls for spidering.\",\n  \"jobs\": [\n    {\n      \"maxToProcessPerSubdomain\": -1,\n      \"jobStatus\": {\n        \"message\": \"Job is initializing.\",\n        \"status\": 0\n      },\n      \"maxHops\": -1,\n      \"onlyProcessIfNew\": 1,\n      \"downloadJson\": \"https://api.diffbot.com/v3/crawl/download/<REDACTED>.json\",\n      \"urlProcessPattern\": \"\",\n      \"jobCompletionTimeUTC\": 0,\n      \"maxRounds\": -1,\n      \"restrictDomain\": 1,\n      \"type\": \"crawl\",\n      \"pageCrawlSuccessesThisRound\": 0,\n      \"urlCrawlRegEx\": \"\",\n      \"pageProcessPattern\": \"\",\n      \"apiUrl\": \"https://api.diffbot.com/v3/analyze\",\n      \"useCanonical\": 1,\n      \"maxToCrawlPerSubdomain\": -1,\n      \"jobCreationTimeUTC\": 1726163287,\n      \"repeat\": 0,\n      \"downloadUrls\": \"https://api.diffbot.com/v3/crawl/download/<REDACTED>.csv\",\n      \"obeyRobots\": 1,\n      \"roundsCompleted\": 0,\n      \"pageCrawlAttempts\": 0,\n      \"notifyWebhook\": \"\",\n      \"pageProcessSuccessesThisRound\": 0,\n      \"customHeaders\": {},\n      \"objectsFound\": 0,\n      \"roundStartTime\": 0,\n      \"urlCrawlPattern\": \"\",\n      \"maxToProcess\": 100000,\n      \"seedRecrawlFrequency\": -1,\n      \"seeds\": \"https://example.com\",\n      \"urlProcessRegEx\": \"\",\n      \"pageProcessSuccesses\": 0,\n      \"urlsHarvested\": 0,\n      \"crawlDelay\": 0.25,\n      \"currentTime\": 1726163288,\n      \"useProxies\": 0,\n      \"maxToCrawl\": 100000,\n      \"sentJobDoneNotification\": 0,\n      \"currentTimeUTC\": 1726163288,\n      \"restrictSubdomain\": 0,\n      \"name\": \"test-crawl\",\n      \"notifyEmail\": \"\",\n      \"pageCrawlSuccesses\": 0,\n      \"pageProcessAttempts\": 0\n    }\n  ]\n}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "response": {
+                      "type": "string",
+                      "example": "Successfully added urls for spidering."
+                    },
+                    "jobs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "maxToProcessPerSubdomain": {
+                            "type": "integer",
+                            "example": -1
+                          },
+                          "jobStatus": {
+                            "type": "object",
+                            "properties": {
+                              "message": {
+                                "type": "string",
+                                "example": "Job is initializing."
+                              },
+                              "status": {
+                                "type": "integer",
+                                "example": 0
+                              }
+                            }
+                          },
+                          "maxHops": {
+                            "type": "integer",
+                            "example": -1
+                          },
+                          "onlyProcessIfNew": {
+                            "type": "integer",
+                            "example": 1
+                          },
+                          "downloadJson": {
+                            "type": "string",
+                            "example": "https://api.diffbot.com/v3/crawl/download/<REDACTED>.json"
+                          },
+                          "urlProcessPattern": {
+                            "type": "string",
+                            "example": ""
+                          },
+                          "jobCompletionTimeUTC": {
+                            "type": "integer",
+                            "example": 0
+                          },
+                          "maxRounds": {
+                            "type": "integer",
+                            "example": -1
+                          },
+                          "restrictDomain": {
+                            "type": "integer",
+                            "example": 1
+                          },
+                          "type": {
+                            "type": "string",
+                            "example": "crawl"
+                          },
+                          "pageCrawlSuccessesThisRound": {
+                            "type": "integer",
+                            "example": 0
+                          },
+                          "urlCrawlRegEx": {
+                            "type": "string",
+                            "example": ""
+                          },
+                          "pageProcessPattern": {
+                            "type": "string",
+                            "example": ""
+                          },
+                          "apiUrl": {
+                            "type": "string",
+                            "example": "https://api.diffbot.com/v3/analyze"
+                          },
+                          "useCanonical": {
+                            "type": "integer",
+                            "example": 1
+                          },
+                          "maxToCrawlPerSubdomain": {
+                            "type": "integer",
+                            "example": -1
+                          },
+                          "jobCreationTimeUTC": {
+                            "type": "integer",
+                            "example": 1726163287
+                          },
+                          "repeat": {
+                            "type": "integer",
+                            "example": 0
+                          },
+                          "downloadUrls": {
+                            "type": "string",
+                            "example": "https://api.diffbot.com/v3/crawl/download/<REDACTED>.csv"
+                          },
+                          "obeyRobots": {
+                            "type": "integer",
+                            "example": 1
+                          },
+                          "roundsCompleted": {
+                            "type": "integer",
+                            "example": 0
+                          },
+                          "pageCrawlAttempts": {
+                            "type": "integer",
+                            "example": 0
+                          },
+                          "notifyWebhook": {
+                            "type": "string",
+                            "example": ""
+                          },
+                          "pageProcessSuccessesThisRound": {
+                            "type": "integer",
+                            "example": 0
+                          },
+                          "customHeaders": {
+                            "type": "object",
+                            "properties": {}
+                          },
+                          "objectsFound": {
+                            "type": "integer",
+                            "example": 0
+                          },
+                          "roundStartTime": {
+                            "type": "integer",
+                            "example": 0
+                          },
+                          "urlCrawlPattern": {
+                            "type": "string",
+                            "example": ""
+                          },
+                          "maxToProcess": {
+                            "type": "integer",
+                            "example": 100000
+                          },
+                          "seedRecrawlFrequency": {
+                            "type": "integer",
+                            "example": -1
+                          },
+                          "seeds": {
+                            "type": "string",
+                            "example": "https://example.com"
+                          },
+                          "urlProcessRegEx": {
+                            "type": "string",
+                            "example": ""
+                          },
+                          "pageProcessSuccesses": {
+                            "type": "integer",
+                            "example": 0
+                          },
+                          "urlsHarvested": {
+                            "type": "integer",
+                            "example": 0
+                          },
+                          "crawlDelay": {
+                            "type": "number",
+                            "example": 0.25
+                          },
+                          "currentTime": {
+                            "type": "integer",
+                            "example": 1726163288
+                          },
+                          "useProxies": {
+                            "type": "integer",
+                            "example": 0
+                          },
+                          "maxToCrawl": {
+                            "type": "integer",
+                            "example": 100000
+                          },
+                          "sentJobDoneNotification": {
+                            "type": "integer",
+                            "example": 0
+                          },
+                          "currentTimeUTC": {
+                            "type": "integer",
+                            "example": 1726163288
+                          },
+                          "restrictSubdomain": {
+                            "type": "integer",
+                            "example": 0
+                          },
+                          "name": {
+                            "type": "string",
+                            "example": "test-crawl"
+                          },
+                          "notifyEmail": {
+                            "type": "string",
+                            "example": ""
+                          },
+                          "pageCrawlSuccesses": {
+                            "type": "integer",
+                            "example": 0
+                          },
+                          "pageProcessAttempts": {
+                            "type": "integer",
+                            "example": 0
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "505": {
+            "description": "Too many collections for token \u2014 the 1,000-crawl limit has been reached",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{\n    \"errorCode\":505,\n    \"error\":\"Too many collections for token\"\n}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errorCode": {
+                      "type": "integer",
+                      "example": 505
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "Too many collections for token"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "tokenscheme": []
+          }
+        ]
+      },
+      "get": {
+        "summary": "Manage a Crawl Job",
+        "description": "Pause, delete, restart, or view the status of a crawl job.",
+        "operationId": "manage-a-crawl-job",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Job name as defined when the crawl job was created.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "roundStart",
+            "in": "query",
+            "description": "Pass `roundStart=1` to force the start of a new crawl \"round\" (manually repeat the crawl). If `onlyProcessIfNew` is set to 1 (default), only newly-created pages will be processed.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pause",
+            "in": "query",
+            "description": "Pass `pause=1` to pause a crawl job. Pass `pause=0` to resume a paused job.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "restart",
+            "in": "query",
+            "description": "Pass `restart=1` to restart a crawl job. This will erase all processed data and re-process all of the submitted URLs.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "delete",
+            "in": "query",
+            "description": "Pass `delete=1`to delete a job, and all associated data, completely.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job managed",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Restarted Crawl Job": {
+                    "value": "{\n    \"response\": \"Successfully added urls for spidering.\",\n    \"jobs\": [\n        {\n            \"jobStatus\": {\n                \"message\": \"Job is initializing.\",\n                \"status\": 0\n            },\n            \"maxHops\": -1,\n            \"downloadJson\": \"...json\",\n            \"urlProcessPattern\": \"\",\n            \"jobCompletionTimeUTC\": 0,\n            \"maxRounds\": -1,\n            \"type\": \"crawl\",\n            \"pageCrawlSuccessesThisRound\": 0,\n            \"urlCrawlRegEx\": \"\",\n            \"pageProcessPattern\": \"\",\n            \"apiUrl\": \"https://api.diffbot.com/v3/analyze\",\n            \"useCanonical\": 1,\n            \"jobCreationTimeUTC\": 1649950325,\n            \"repeat\": 0,\n            \"downloadUrls\": \"...csv\",\n            \"obeyRobots\": 1,\n            \"roundsCompleted\": 0,\n            \"pageCrawlAttempts\": 0,\n            \"notifyWebhook\": \"\",\n            \"pageProcessSuccessesThisRound\": 0,\n            \"customHeaders\": {},\n            \"objectsFound\": 0,\n            \"roundStartTime\": 0,\n            \"urlCrawlPattern\": \"\",\n            \"seedRecrawlFrequency\": -1,\n            \"urlProcessRegEx\": \"\",\n            \"pageProcessSuccesses\": 0,\n            \"urlsHarvested\": 0,\n            \"crawlDelay\": -1,\n            \"currentTime\": 1649950325,\n            \"useProxies\": 0,\n            \"sentJobDoneNotification\": 0,\n            \"currentTimeUTC\": 1649950325,\n            \"name\": \"crawlTest\",\n            \"notifyEmail\": \"\",\n            \"pageCrawlSuccesses\": 0,\n            \"pageProcessAttempts\": 0\n        }\n    ]\n}"
+                  },
+                  "Paused Crawl Job": {
+                    "value": "{\n    \"response\": \"Successfully added urls for spidering.\",\n    \"jobs\": [\n        {\n            \"jobStatus\": {\n              \"message\": \"Job paused.\",\n              \"status\": 6\n            },\n            \"maxHops\": -1,\n            \"downloadJson\": \"...json\",\n            \"urlProcessPattern\": \"\",\n            \"jobCompletionTimeUTC\": 0,\n            \"maxRounds\": -1,\n            \"type\": \"crawl\",\n            \"pageCrawlSuccessesThisRound\": 0,\n            \"urlCrawlRegEx\": \"\",\n            \"pageProcessPattern\": \"\",\n            \"apiUrl\": \"https://api.diffbot.com/v3/analyze\",\n            \"useCanonical\": 1,\n            \"jobCreationTimeUTC\": 1649950325,\n            \"repeat\": 0,\n            \"downloadUrls\": \"...csv\",\n            \"obeyRobots\": 1,\n            \"roundsCompleted\": 0,\n            \"pageCrawlAttempts\": 0,\n            \"notifyWebhook\": \"\",\n            \"pageProcessSuccessesThisRound\": 0,\n            \"customHeaders\": {},\n            \"objectsFound\": 0,\n            \"roundStartTime\": 0,\n            \"urlCrawlPattern\": \"\",\n            \"seedRecrawlFrequency\": -1,\n            \"urlProcessRegEx\": \"\",\n            \"pageProcessSuccesses\": 0,\n            \"urlsHarvested\": 0,\n            \"crawlDelay\": -1,\n            \"currentTime\": 1649950325,\n            \"useProxies\": 0,\n            \"sentJobDoneNotification\": 0,\n            \"currentTimeUTC\": 1649950325,\n            \"name\": \"crawlTest\",\n            \"notifyEmail\": \"\",\n            \"pageCrawlSuccesses\": 0,\n            \"pageProcessAttempts\": 0\n        }\n    ]\n}"
+                  },
+                  "Deleted Crawl Job": {
+                    "value": "{\n  \"response\": \"Successfully deleted job.\"\n}"
+                  },
+                  "Completed Crawl Job": {
+                    "value": "{\n    \"jobs\": [\n        {\n            \"jobStatus\": {\n                \"message\": \"Job has completed and no repeat is scheduled.\",\n                \"status\": 9\n            },\n            \"maxHops\": -1,\n            \"downloadJson\": \"...json\",\n            \"urlProcessPattern\": \"\",\n            \"jobCompletionTimeUTC\": 0,\n            \"maxRounds\": -1,\n            \"type\": \"crawl\",\n            \"pageCrawlSuccessesThisRound\": 0,\n            \"urlCrawlRegEx\": \"\",\n            \"pageProcessPattern\": \"\",\n            \"apiUrl\": \"https://api.diffbot.com/v3/analyze\",\n            \"useCanonical\": 1,\n            \"jobCreationTimeUTC\": 1649950325,\n            \"repeat\": 0,\n            \"downloadUrls\": \"...csv\",\n            \"obeyRobots\": 1,\n            \"roundsCompleted\": 0,\n            \"pageCrawlAttempts\": 0,\n            \"notifyWebhook\": \"\",\n            \"pageProcessSuccessesThisRound\": 0,\n            \"customHeaders\": {},\n            \"objectsFound\": 0,\n            \"roundStartTime\": 0,\n            \"urlCrawlPattern\": \"\",\n            \"seedRecrawlFrequency\": -1,\n            \"urlProcessRegEx\": \"\",\n            \"pageProcessSuccesses\": 0,\n            \"urlsHarvested\": 0,\n            \"crawlDelay\": -1,\n            \"currentTime\": 1649950325,\n            \"useProxies\": 0,\n            \"sentJobDoneNotification\": 0,\n            \"currentTimeUTC\": 1649950325,\n            \"name\": \"crawlTest\",\n            \"notifyEmail\": \"\",\n            \"pageCrawlSuccesses\": 0,\n            \"pageProcessAttempts\": 0\n        }\n    ]\n}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "oneOf": [
+                    {
+                      "title": "Restarted Crawl Job",
+                      "type": "object",
+                      "properties": {
+                        "response": {
+                          "type": "string",
+                          "example": "Successfully added urls for spidering."
+                        },
+                        "jobs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "jobStatus": {
+                                "type": "object",
+                                "properties": {
+                                  "message": {
+                                    "type": "string",
+                                    "example": "Job is initializing."
+                                  },
+                                  "status": {
+                                    "type": "integer",
+                                    "example": 0
+                                  }
+                                }
+                              },
+                              "maxHops": {
+                                "type": "integer",
+                                "example": -1
+                              },
+                              "downloadJson": {
+                                "type": "string",
+                                "example": "...json"
+                              },
+                              "urlProcessPattern": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "jobCompletionTimeUTC": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "maxRounds": {
+                                "type": "integer",
+                                "example": -1
+                              },
+                              "type": {
+                                "type": "string",
+                                "example": "crawl"
+                              },
+                              "pageCrawlSuccessesThisRound": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "urlCrawlRegEx": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "pageProcessPattern": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "apiUrl": {
+                                "type": "string",
+                                "example": "https://api.diffbot.com/v3/analyze"
+                              },
+                              "useCanonical": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "jobCreationTimeUTC": {
+                                "type": "integer",
+                                "example": 1649950325
+                              },
+                              "repeat": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "downloadUrls": {
+                                "type": "string",
+                                "example": "...csv"
+                              },
+                              "obeyRobots": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "roundsCompleted": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "pageCrawlAttempts": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "notifyWebhook": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "pageProcessSuccessesThisRound": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "customHeaders": {
+                                "type": "object",
+                                "properties": {}
+                              },
+                              "objectsFound": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "roundStartTime": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "urlCrawlPattern": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "seedRecrawlFrequency": {
+                                "type": "integer",
+                                "example": -1
+                              },
+                              "urlProcessRegEx": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "pageProcessSuccesses": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "urlsHarvested": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "crawlDelay": {
+                                "type": "number",
+                                "example": -1
+                              },
+                              "currentTime": {
+                                "type": "integer",
+                                "example": 1649950325
+                              },
+                              "useProxies": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "sentJobDoneNotification": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "currentTimeUTC": {
+                                "type": "integer",
+                                "example": 1649950325
+                              },
+                              "name": {
+                                "type": "string",
+                                "example": "crawlTest"
+                              },
+                              "notifyEmail": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "pageCrawlSuccesses": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "pageProcessAttempts": {
+                                "type": "integer",
+                                "example": 0
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "title": "Paused Crawl Job",
+                      "type": "object",
+                      "properties": {
+                        "response": {
+                          "type": "string",
+                          "example": "Successfully added urls for spidering."
+                        },
+                        "jobs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "jobStatus": {
+                                "type": "object",
+                                "properties": {
+                                  "message": {
+                                    "type": "string",
+                                    "example": "Job paused."
+                                  },
+                                  "status": {
+                                    "type": "integer",
+                                    "example": 6
+                                  }
+                                }
+                              },
+                              "maxHops": {
+                                "type": "integer",
+                                "example": -1
+                              },
+                              "downloadJson": {
+                                "type": "string",
+                                "example": "...json"
+                              },
+                              "urlProcessPattern": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "jobCompletionTimeUTC": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "maxRounds": {
+                                "type": "integer",
+                                "example": -1
+                              },
+                              "type": {
+                                "type": "string",
+                                "example": "crawl"
+                              },
+                              "pageCrawlSuccessesThisRound": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "urlCrawlRegEx": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "pageProcessPattern": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "apiUrl": {
+                                "type": "string",
+                                "example": "https://api.diffbot.com/v3/analyze"
+                              },
+                              "useCanonical": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "jobCreationTimeUTC": {
+                                "type": "integer",
+                                "example": 1649950325
+                              },
+                              "repeat": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "downloadUrls": {
+                                "type": "string",
+                                "example": "...csv"
+                              },
+                              "obeyRobots": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "roundsCompleted": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "pageCrawlAttempts": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "notifyWebhook": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "pageProcessSuccessesThisRound": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "customHeaders": {
+                                "type": "object",
+                                "properties": {}
+                              },
+                              "objectsFound": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "roundStartTime": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "urlCrawlPattern": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "seedRecrawlFrequency": {
+                                "type": "integer",
+                                "example": -1
+                              },
+                              "urlProcessRegEx": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "pageProcessSuccesses": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "urlsHarvested": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "crawlDelay": {
+                                "type": "number",
+                                "example": -1
+                              },
+                              "currentTime": {
+                                "type": "integer",
+                                "example": 1649950325
+                              },
+                              "useProxies": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "sentJobDoneNotification": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "currentTimeUTC": {
+                                "type": "integer",
+                                "example": 1649950325
+                              },
+                              "name": {
+                                "type": "string",
+                                "example": "crawlTest"
+                              },
+                              "notifyEmail": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "pageCrawlSuccesses": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "pageProcessAttempts": {
+                                "type": "integer",
+                                "example": 0
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "title": "Deleted Crawl Job",
+                      "type": "object",
+                      "properties": {
+                        "response": {
+                          "type": "string",
+                          "example": "Successfully deleted job."
+                        }
+                      }
+                    },
+                    {
+                      "title": "Completed Crawl Job",
+                      "type": "object",
+                      "properties": {
+                        "jobs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "jobStatus": {
+                                "type": "object",
+                                "properties": {
+                                  "message": {
+                                    "type": "string",
+                                    "example": "Job has completed and no repeat is scheduled."
+                                  },
+                                  "status": {
+                                    "type": "integer",
+                                    "example": 9
+                                  }
+                                }
+                              },
+                              "maxHops": {
+                                "type": "integer",
+                                "example": -1
+                              },
+                              "downloadJson": {
+                                "type": "string",
+                                "example": "...json"
+                              },
+                              "urlProcessPattern": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "jobCompletionTimeUTC": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "maxRounds": {
+                                "type": "integer",
+                                "example": -1
+                              },
+                              "type": {
+                                "type": "string",
+                                "example": "crawl"
+                              },
+                              "pageCrawlSuccessesThisRound": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "urlCrawlRegEx": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "pageProcessPattern": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "apiUrl": {
+                                "type": "string",
+                                "example": "https://api.diffbot.com/v3/analyze"
+                              },
+                              "useCanonical": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "jobCreationTimeUTC": {
+                                "type": "integer",
+                                "example": 1649950325
+                              },
+                              "repeat": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "downloadUrls": {
+                                "type": "string",
+                                "example": "...csv"
+                              },
+                              "obeyRobots": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "roundsCompleted": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "pageCrawlAttempts": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "notifyWebhook": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "pageProcessSuccessesThisRound": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "customHeaders": {
+                                "type": "object",
+                                "properties": {}
+                              },
+                              "objectsFound": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "roundStartTime": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "urlCrawlPattern": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "seedRecrawlFrequency": {
+                                "type": "integer",
+                                "example": -1
+                              },
+                              "urlProcessRegEx": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "pageProcessSuccesses": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "urlsHarvested": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "crawlDelay": {
+                                "type": "number",
+                                "example": -1
+                              },
+                              "currentTime": {
+                                "type": "integer",
+                                "example": 1649950325
+                              },
+                              "useProxies": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "sentJobDoneNotification": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "currentTimeUTC": {
+                                "type": "integer",
+                                "example": 1649950325
+                              },
+                              "name": {
+                                "type": "string",
+                                "example": "crawlTest"
+                              },
+                              "notifyEmail": {
+                                "type": "string",
+                                "example": ""
+                              },
+                              "pageCrawlSuccesses": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "pageProcessAttempts": {
+                                "type": "integer",
+                                "example": 0
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "No crawl job by that name",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Crawl Job Not Found": {
+                    "value": "{\n    \"errorCode\": \"500\",\n    \"error\": \"no collection record.\"\n}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errorCode": {
+                      "type": "string",
+                      "example": "500"
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "no collection record."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "tokenscheme": []
+          }
+        ]
+      }
+    },
+    "/crawl/data": {
+      "get": {
+        "summary": "Retrieve Crawl Job Data",
+        "description": "Download the extracted results of a crawl job.",
+        "operationId": "retrieve-crawl-job-data",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Name of the crawl job whose data you wish to download.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Request `format=csv` to download the extracted data in CSV format (default: `json`). Note that CSV files will only contain top-level fields.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Request `type=urls` to retrieve the [URL Report (CSV)](/products/crawl/faq/url-report).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "num",
+            "in": "query",
+            "description": "Pass an integer value (e.g. `num=100`) to request a subset of URLs, most recently processed first.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The crawl job's extracted data",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "[\n    {\n        \"col\": \"example-test\",\n        \"parentUrl\": \"https://www.example.com\",\n        \"pageUrl\": \"https://www.example.com/\",\n        \"id\": 1492074227214006500,\n        \"type\": \"other\",\n        \"title\": \"Example Domain\",\n        \"content\": \"Example Domain \\n\\n# Example Domain \\n\\nThis domain is for use in documentation examples without needing permission. Avoid use in operations. \\n\\n[Learn more](https://iana.org/domains/example)\",\n        \"token\": \"<REDACTED>\",\n        \"timestamp\": \"2026-07-24T23:15:09Z\"\n    }\n]"
+                  }
+                },
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "col",
+                      "parentUrl",
+                      "pageUrl",
+                      "id",
+                      "type",
+                      "token",
+                      "timestamp"
+                    ],
+                    "properties": {
+                      "col": {
+                        "description": "Name of the Crawl or Bulk job this record was extracted from",
+                        "type": "string",
+                        "example": "example-test"
+                      },
+                      "parentUrl": {
+                        "description": "Immediate parent contained a link to this record",
+                        "type": "string",
+                        "example": "https://www.example.com"
+                      },
+                      "pageUrl": {
+                        "description": "The URL of this record",
+                        "type": "string",
+                        "example": "https://www.example.com/"
+                      },
+                      "id": {
+                        "description": "A reference",
+                        "type": "integer",
+                        "example": 1492074227214006500
+                      },
+                      "type": {
+                        "description": "A standard entity type assigned either on job creation or classified by [Analyze API](/docs/extract/analyze). All other keys on this job record follow the [ontology](/docs/ontology/) set by its type.",
+                        "type": "string",
+                        "example": "other"
+                      },
+                      "token": {
+                        "description": "Your token",
+                        "type": "string",
+                        "example": "<REDACTED>"
+                      },
+                      "timestamp": {
+                        "description": "Time when record was crawled, in ISO 8601 format.",
+                        "type": "string",
+                        "example": "2026-07-24T23:15:09Z"
+                      }
+                    },
+                    "additionalProperties": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No crawl job by that name",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{\n  \"errorCode\": 400,\n  \"error\": \"No collection record\"\n}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errorCode": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "No collection record"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "tokenscheme": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "tokenscheme": {
+        "type": "apiKey",
+        "name": "token",
+        "in": "query"
+      }
+    }
+  }
+}

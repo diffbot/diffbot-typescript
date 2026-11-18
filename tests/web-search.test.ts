@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DiffbotClient, webSearch } from "../src/index.js";
+import { DiffbotClient, ValidationError, webSearch } from "../src/index.js";
 import { createMockFetch, jsonResponse } from "./helpers/mock-fetch.js";
 
 function makeClient(handler: Parameters<typeof createMockFetch>[0]) {
@@ -66,5 +66,51 @@ describe("webSearch", () => {
   it("raises on error status", async () => {
     const db = makeClient(() => jsonResponse({ code: 401, message: "nope" }, 401));
     await expect(webSearch(db, "diffbot")).rejects.toMatchObject({ name: "AuthError" });
+  });
+});
+
+describe("webSearch multi-value text", () => {
+  function capture() {
+    const seen: { texts?: string[]; method?: string; called: boolean } = { called: false };
+    const db = makeClient((req) => {
+      seen.called = true;
+      seen.method = req.method;
+      seen.texts = req.params.getAll("text");
+      return jsonResponse({ results: [] });
+    });
+    return { db, seen };
+  }
+
+  it("sends one string as a single text param (GET)", async () => {
+    const { db, seen } = capture();
+    await webSearch(db, "diffbot");
+    expect(seen.method).toBe("GET");
+    expect(seen.texts).toEqual(["diffbot"]);
+  });
+
+  it("treats a one-element array like a string", async () => {
+    const { db, seen } = capture();
+    await webSearch(db, ["diffbot"]);
+    expect(seen.texts).toEqual(["diffbot"]);
+  });
+
+  it("sends 2 values as repeated text params", async () => {
+    const { db, seen } = capture();
+    await webSearch(db, ["a b", "c&d"], { numResults: 1 });
+    expect(seen.method).toBe("GET");
+    expect(seen.texts).toEqual(["a b", "c&d"]);
+  });
+
+  it("accepts 5 values", async () => {
+    const { db, seen } = capture();
+    await webSearch(db, ["1", "2", "3", "4", "5"]);
+    expect(seen.texts).toEqual(["1", "2", "3", "4", "5"]);
+  });
+
+  it("rejects 0 and 6 values without sending", async () => {
+    const { db, seen } = capture();
+    await expect(webSearch(db, [])).rejects.toBeInstanceOf(ValidationError);
+    await expect(webSearch(db, ["1", "2", "3", "4", "5", "6"])).rejects.toBeInstanceOf(ValidationError);
+    expect(seen.called).toBe(false);
   });
 });

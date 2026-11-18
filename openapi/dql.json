@@ -1,0 +1,924 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "DQL API",
+    "description": "DQL is an API to query entities in the Knowledge Graph",
+    "termsOfService": "https://www.diffbot.com/terms/",
+    "contact": {
+      "email": "support@diffbot.com"
+    },
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://kg.diffbot.com",
+      "description": "Diffbot KG endpoint"
+    }
+  ],
+  "tags": [
+    {
+      "name": "DQL Search",
+      "description": "DQL Search"
+    }
+  ],
+  "paths": {
+    "/kg/v3/dql": {
+      "get": {
+        "tags": [
+          "DQL Search"
+        ],
+        "summary": "Search with DQL",
+        "description": "Search the Knowledge Graph using DQL",
+        "operationId": "dqlGet",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Query type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "query",
+                "crawl"
+              ],
+              "default": "query"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "description": "DQL Query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "type:Organization locations.city.name:\"San Francisco\" nbEmployees>5000"
+            }
+          },
+          {
+            "name": "col",
+            "in": "query",
+            "description": "Comma-delimited list of custom crawl collections to query. Specify `all` to query all collections for your token. This parameter is valid only when type=crawl and defaults to `all`",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Return results starting at `from` index. `from+size <= 10_000` for facet queries.\n\nPlease note that the from parameter is no longer applicable to Article queries and has been deprecated. In the future, using this parameter will result in an error.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Maximum number of results to return. `-1` to return all results. `from+size <= 10_000` for facet queries.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Output format",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "jsonl",
+                "csv",
+                "xls",
+                "xlsx"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "exportspec",
+            "in": "query",
+            "description": "The spec defines the columns to export. This is applicable for csv, xls and xslx formats.\n\nExport spec specifies how to export the entity JSON to a csv. A simple export spec looks like `name;summary`. To specify more complex export spec, including specifying how many of a list of `industries` to return, or the ideal `employment` record, see [Exporting Columnar Format](https://docs.diffbot.com/reference/exporting-csv) and [JsonPath Filtering](https://docs.diffbot.com/reference/filtering-fields).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "exportseparator",
+            "in": "query",
+            "description": "The export separator",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "exportfile",
+            "in": "query",
+            "description": "For export endpoint, The file name of the export file",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "description": "Semi-colon separated path filter to filter response json. You can use a simple dot notation `skills.name` or a JsonPath expression such as `$.name;$.locations.country.name`. For more advanced options, see [JsonPath Filtering](https://docs.diffbot.com/reference/filtering-fields) for syntax.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filterExclude",
+            "in": "query",
+            "description": "Semi-colon separated path filter to filter and exclude data from response json. You can use a simple dot notation `skills.name` or a JsonPath expression such as `$.name;$.locations.country.name`. For more advanced options, see [JsonPath Filtering](https://docs.diffbot.com/reference/filtering-fields) for syntax.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "jsonmode",
+            "in": "query",
+            "description": "`extended` returns origin information for facts. `id` returns just the diffbotIds and origins.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "extended",
+                "id"
+              ]
+            }
+          },
+          {
+            "name": "nonCanonicalFacts",
+            "in": "query",
+            "description": "`nonCanonicalFacts=true` returns non-canonical facts.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "noDedupArticles",
+            "in": "query",
+            "description": "`noDedupArticles=true` indicates that articles should not be deduplicated but all of them returned",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "description": "Articles only. Utilize Diffbot clustering algorithms to identify related or similar objects. \n- `cluster=all` to return each article with a clusterId identifying thematically-similar articles. \n- `cluster=best` to remove thematically-similar articles from the result set, leaving a single best representative from each cluster. \n- `cluster=dedupe` to remove exact and near-duplicate articles from the result set. Where applicable, clusterId is returned in the `entity_ctx` element of each response entity.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "best",
+                "dedupe"
+              ]
+            }
+          },
+          {
+            "name": "report",
+            "in": "query",
+            "description": "Generate coverage report. See [Coverage Reports](https://docs.diffbot.com/docs/dql-coverage-reports) for more details on generating coverage reports for DQL queries.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Results"
+          },
+          "400": {
+            "$ref": "#/components/responses/QueryParseError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ParameterError"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "security": [
+          {
+            "tokenscheme": []
+          }
+        ],
+        "x-group-parameters": true
+      },
+      "post": {
+        "tags": [
+          "DQL Search"
+        ],
+        "summary": "Search with DQL",
+        "description": "Search the Knowledge Graph using DQL",
+        "operationId": "dqlPost",
+        "requestBody": {
+          "description": "DQL request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DqlPostRequest"
+              },
+              "examples": {
+                "Search": {
+                  "summary": "A San Francisco org search",
+                  "value": {
+                    "query": "type:Organization locations.city.name:\"San Francisco\" nbEmployees>5000",
+                    "size": 2,
+                    "filter": "$.name;$.homepageUri;$.nbEmployees"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Results"
+          },
+          "400": {
+            "$ref": "#/components/responses/QueryParseError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ParameterError"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "security": [
+          {
+            "tokenscheme": []
+          }
+        ],
+        "x-group-parameters": true
+      }
+    },
+    "/kg/v3/dql/report": {
+      "get": {
+        "tags": [
+          "DQL Search"
+        ],
+        "summary": "Coverage report by Query",
+        "description": "Download coverage report by DQL query",
+        "operationId": "reportFind",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "description": "DQL Query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Return results starting at `from` index. `from+size <= 10_000` for facet queries.\n\nPlease note that the from parameter is no longer applicable to Article queries and has been deprecated. In the future, using this parameter will result in an error.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Maximum number of results to return. `-1` to return all results. `from+size <= 10_000` for facet queries.",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "description": "Semi-colon separated path filter to filter response json. You can use a simple dot notation `skills.name` or a JsonPath expression such as `$.name;$.locations.country.name`. For more advanced options, see [JsonPath Filtering](https://docs.diffbot.com/reference/filtering-fields) for syntax.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filterExclude",
+            "in": "query",
+            "description": "Semi-colon separated path filter to filter and exclude data from response json. You can use a simple dot notation `skills.name` or a JsonPath expression such as `$.name;$.locations.country.name`. For more advanced options, see [JsonPath Filtering](https://docs.diffbot.com/reference/filtering-fields) for syntax.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "exportspec",
+            "in": "query",
+            "description": "The spec defines the columns to export. This is applicable for csv, xls and xslx formats.\n\nExport spec specifies how to export the entity JSON to a csv. A simple export spec looks like `name;summary`. To specify more complex export spec, including specifying how many of a list of `industries` to return, or the ideal `employment` record, see [Exporting Columnar Format](https://docs.diffbot.com/reference/exporting-csv) and [JsonPath Filtering](https://docs.diffbot.com/reference/filtering-fields).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Coverage report",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "DiffbotID,Name,$.name,$.nbEmployees\n\"\",,1.0,1.0\nEl0wZJw_cOn-MAyp_hZZ5Tw,Yandex,1,1\nEUFq-3WlpNsq0pvfUYWXOEA,Google,1,1\nEc5P22-6EPLOXo1-z6-4NzA,Instagram,1,1\n"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "security": [
+          {
+            "tokenscheme": []
+          }
+        ]
+      }
+    },
+    "/kg/v3/dql/report/{id}": {
+      "get": {
+        "tags": [
+          "DQL Search"
+        ],
+        "summary": "Coverage report by ID",
+        "description": "Download coverage report by report ID",
+        "operationId": "reportGet",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The report id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Coverage report",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "DiffbotID,Name,$.name,$.nbEmployees\n\"\",,1.0,1.0\nEl0wZJw_cOn-MAyp_hZZ5Tw,Yandex,1,1\nEUFq-3WlpNsq0pvfUYWXOEA,Google,1,1\nEc5P22-6EPLOXo1-z6-4NzA,Instagram,1,1\n"
+              }
+            }
+          },
+          "404": {
+            "description": "Report not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParameterError"
+                },
+                "examples": {
+                  "Not found": {
+                    "summary": "Report not found",
+                    "value": {
+                      "error": true,
+                      "message": "Report not found: C-4d87a965-b43f"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        },
+        "security": [
+          {
+            "tokenscheme": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Data": {
+        "type": "object",
+        "properties": {
+          "score": {
+            "type": "number",
+            "description": "score",
+            "format": "double",
+            "example": 0.75
+          },
+          "entity": {
+            "$ref": "#/components/schemas/JSONObject"
+          },
+          "entity_ctx": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "description": "Entity-level context"
+            },
+            "description": "Entity-level context"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Error/warning messages."
+            }
+          },
+          "callbackQuery": {
+            "type": "string",
+            "description": "The query for the facet"
+          },
+          "upperBound": {
+            "type": "number",
+            "description": "The upper bound of the facet",
+            "format": "double"
+          },
+          "lowerBound": {
+            "type": "number",
+            "description": "The lower bound of the facet",
+            "format": "double"
+          },
+          "count": {
+            "type": "integer",
+            "description": "The count of the facet",
+            "format": "int64"
+          },
+          "value": {
+            "type": "string",
+            "description": "The value of the facet"
+          },
+          "uri": {
+            "type": "string",
+            "description": "The uri of the facet value (for uri facets)"
+          }
+        },
+        "description": "A single result"
+      },
+      "DqlResponse": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "description": "Response version",
+            "format": "int32",
+            "example": 3
+          },
+          "hits": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "results": {
+            "type": "integer",
+            "description": "Number of results in this response",
+            "format": "int64",
+            "example": 50
+          },
+          "kgversion": {
+            "type": "string",
+            "description": "Version of KG that was queried",
+            "example": "250"
+          },
+          "diffbot_type": {
+            "type": "string",
+            "description": "Diffbot type of returned results",
+            "example": "Organization"
+          },
+          "facet": {
+            "type": "boolean",
+            "description": "Was this a facet query?"
+          },
+          "data": {
+            "type": "array",
+            "description": "Results of the query",
+            "items": {
+              "$ref": "#/components/schemas/Data"
+            }
+          },
+          "rewrites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Rewrite"
+            }
+          },
+          "textFallback": {
+            "type": "boolean",
+            "description": "Whether the query fell back to text search.",
+            "example": false
+          },
+          "reportId": {
+            "type": "string",
+            "description": "Identifier for the generated coverage report. Present only when `report=true` was passed.",
+            "example": "C-4d87a965-b43f"
+          }
+        }
+      },
+      "JSONObject": {
+        "type": "object",
+        "properties": {
+          "empty": {
+            "type": "boolean"
+          }
+        },
+        "description": "Entity. Can be null if no entity was found.",
+        "example": {
+          "id": "EYX1i02YVPsuT7fPLUYgRhQ",
+          "diffbotUri": "http://diffbot.com/entity/EYX1i02YVPsuT7fPLUYgRhQ",
+          "name": "Diffbot",
+          "origins": [
+            "angel.co/diffbot",
+            "bloomberg.com/profiles/companies/0506286D:US-diffbot-corp",
+            "crunchbase.com/organization/diffbot",
+            "linkedin.com/company/diffbot",
+            "en.wikipedia.org/wiki/Diffbot"
+          ]
+        }
+      },
+      "Rewrite": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "DqlPostRequest": {
+        "required": [
+          "query"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Query type",
+            "enum": [
+              "query",
+              "text",
+              "queryTextFallback",
+              "crawl"
+            ],
+            "default": "query"
+          },
+          "query": {
+            "type": "string",
+            "description": "DQL Query"
+          },
+          "col": {
+            "type": "string",
+            "description": "Comma-delimited list of custom crawl collections to query. Specify `all` to query all collections for your token. This parameter is valid only when type=crawl and defaults to `all`"
+          },
+          "from": {
+            "type": "integer",
+            "description": "Return results starting at `from` index. `from+size <= 10_000` for facet queries.\n\nPlease note that the from parameter is no longer applicable to Article queries and has been deprecated. In the future, using this parameter will result in an error.",
+            "format": "int32",
+            "default": 0
+          },
+          "size": {
+            "type": "integer",
+            "description": "Maximum number of results to return. `-1` to return all results. `from+size <= 10_000` for facet queries.",
+            "format": "int32",
+            "default": 50
+          },
+          "format": {
+            "type": "string",
+            "description": "Output format",
+            "enum": [
+              "json",
+              "jsonl",
+              "csv",
+              "xls",
+              "xlsx"
+            ],
+            "default": "json"
+          },
+          "exportspec": {
+            "type": "string",
+            "description": "The spec defines the columns to export. This is applicable for csv, xls and xslx formats.\n\nExport spec specifies how to export the entity JSON to a csv. A simple export spec looks like `name;summary`. To specify more complex export spec, including specifying how many of a list of `industries` to return, or the ideal `employment` record, see [Exporting Columnar Format](https://docs.diffbot.com/reference/exporting-csv) and [JsonPath Filtering](https://docs.diffbot.com/reference/filtering-fields)."
+          },
+          "exportseparator": {
+            "type": "string",
+            "description": "For export endpoint, define separator for fields which contains multiple values"
+          },
+          "exportfile": {
+            "type": "string",
+            "description": "For export endpoint, The file name of the export file"
+          },
+          "filter": {
+            "type": "string",
+            "description": "Semi-colon separated path filter to filter response json. You can use a simple dot notation `skills.name` or a JsonPath expression such as `$.name;$.locations.country.name`. For more advanced options, see [JsonPath Filtering](https://docs.diffbot.com/reference/filtering-fields) for syntax."
+          },
+          "filterExclude": {
+            "type": "string",
+            "description": "Semi-colon separated path filter to filter and exclude data from response json. You can use a simple dot notation `skills.name` or a JsonPath expression such as `$.name;$.locations.country.name`. For more advanced options, see [JsonPath Filtering](https://docs.diffbot.com/reference/filtering-fields) for syntax."
+          },
+          "jsonmode": {
+            "type": "string",
+            "description": "`extended` returns origin information for facts. `id` returns just the diffbotIds and origins.",
+            "enum": [
+              "extended",
+              "id"
+            ]
+          },
+          "nonCanonicalFacts": {
+            "type": "boolean",
+            "description": "`nonCanonicalFacts=true` returns non-canonical facts.",
+            "default": false
+          },
+          "noDedupArticles": {
+            "type": "boolean",
+            "description": "`noDedupArticles=true` indicates that articles should not be deduplicated but all of them returned",
+            "default": false
+          },
+          "cluster": {
+            "type": "string",
+            "description": "Articles only. Utilize Diffbot clustering algorithms to identify related or similar objects. \n- `cluster=all` to return each article with a clusterId identifying thematically-similar articles. \n- `cluster=best` to remove thematically-similar articles from the result set, leaving a single best representative from each cluster. \n- `cluster=dedupe` to remove exact and near-duplicate articles from the result set. Where applicable, clusterId is returned in the `entity_ctx` element of each response entity.",
+            "enum": []
+          },
+          "report": {
+            "type": "boolean",
+            "description": "Generate coverage report. See [Coverage Reports](https://docs.diffbot.com/docs/dql-coverage-reports) for more details on generating coverage reports for DQL queries.",
+            "default": false
+          },
+          "view": {
+            "type": "string"
+          }
+        }
+      },
+      "QueryParseError": {
+        "type": "object",
+        "description": "Returned when the DQL query itself cannot be parsed.",
+        "properties": {
+          "error": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Encountered \" \":\" \": \"\" at line 1, column 6."
+          },
+          "line": {
+            "type": "integer",
+            "example": 1
+          },
+          "column": {
+            "type": "integer",
+            "example": 6
+          },
+          "htmlMessage": {
+            "type": "string",
+            "description": "The message with the offending token wrapped in `<mark>` for display.",
+            "example": "<span>type:<mark>:</mark>:Bogus((</span>"
+          }
+        }
+      },
+      "ParameterError": {
+        "type": "object",
+        "description": "Returned when a request parameter is missing or invalid.",
+        "properties": {
+          "error": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Parameter 'query' not specified"
+          }
+        }
+      },
+      "AuthError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 401
+          },
+          "message": {
+            "type": "string",
+            "example": "Unauthorized. Incorrect token."
+          },
+          "requestId": {
+            "type": "string",
+            "example": "a9cbf96bb0e2084d5c1595ae8f526576"
+          }
+        }
+      },
+      "ServerError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 500
+          },
+          "message": {
+            "type": "string",
+            "example": "HTTP 500 Internal Server Error"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "tokenscheme": {
+        "type": "apiKey",
+        "name": "token",
+        "in": "query",
+        "description": "Your Diffbot API token."
+      }
+    },
+    "responses": {
+      "Results": {
+        "description": "Query results",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DqlResponse"
+            },
+            "examples": {
+              "OK": {
+                "summary": "OK",
+                "value": {
+                  "version": 3,
+                  "hits": 642,
+                  "results": 2,
+                  "kgversion": "477",
+                  "diffbot_type": "Organization",
+                  "facet": false,
+                  "textFallback": false,
+                  "data": [
+                    {
+                      "score": 1584.3050537109375,
+                      "entity": {
+                        "name": "Yandex",
+                        "homepageUri": "yandex.com",
+                        "nbEmployees": 26361
+                      },
+                      "entity_ctx": {
+                        "inner_hits": {
+                          "locations": [
+                            39
+                          ]
+                        },
+                        "matched_clauses": []
+                      }
+                    },
+                    {
+                      "score": 1558.7650146484375,
+                      "entity": {
+                        "name": "Google",
+                        "homepageUri": "google.com",
+                        "nbEmployees": 187000
+                      },
+                      "entity_ctx": {
+                        "inner_hits": {
+                          "locations": [
+                            192,
+                            161,
+                            261,
+                            215
+                          ]
+                        },
+                        "matched_clauses": []
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "application/json-lines": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "text/csv": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "application/ms-excel": {
+            "schema": {
+              "type": "object"
+            }
+          },
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+            "schema": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "QueryParseError": {
+        "description": "Error parsing the query",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/QueryParseError"
+            },
+            "examples": {
+              "Parse error": {
+                "summary": "Malformed DQL",
+                "value": {
+                  "line": 1,
+                  "column": 6,
+                  "htmlMessage": "<span>type:<mark>:</mark>:Bogus((</span>",
+                  "error": true,
+                  "message": "Encountered \" \":\" \": \"\" at line 1, column 6."
+                }
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuthError"
+            },
+            "examples": {
+              "Incorrect token": {
+                "summary": "Incorrect token",
+                "value": {
+                  "code": 401,
+                  "message": "Unauthorized. Incorrect token.",
+                  "requestId": "a9cbf96bb0e2084d5c1595ae8f526576"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ParameterError": {
+        "description": "Invalid or missing parameters",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ParameterError"
+            },
+            "examples": {
+              "Missing query": {
+                "summary": "Missing query",
+                "value": {
+                  "error": true,
+                  "message": "Parameter 'query' not specified"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ServerError": {
+        "description": "Internal Server Error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ServerError"
+            },
+            "examples": {
+              "Server error": {
+                "summary": "Server error",
+                "value": {
+                  "code": 500,
+                  "message": "HTTP 500 Internal Server Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

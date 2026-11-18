@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DiffbotClient, ExtractionError, ValidationError, extract } from "../src/index.js";
 import { createMockFetch, jsonResponse } from "./helpers/mock-fetch.js";
 
@@ -79,5 +79,113 @@ describe("extract", () => {
       await extract(scoped, "example.com");
     }
     expect(db.http.isClosed).toBe(true);
+  });
+});
+
+describe("extract options", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function capture(clientTimeout?: number) {
+    const seen: { params?: URLSearchParams } = {};
+    const db = new DiffbotClient({
+      token: "test-token",
+      timeout: clientTimeout,
+      fetch: createMockFetch((req) => {
+        seen.params = req.params;
+        return jsonResponse({ objects: [] });
+      }),
+    });
+    return { db, seen };
+  }
+
+  it("keeps the legacy wire defaults when no options are given", async () => {
+    const { db, seen } = capture();
+    await extract(db, "example.com");
+    expect(Object.fromEntries(seen.params!)).toEqual({
+      token: "test-token",
+      url: "https://example.com",
+      timeout: "30000",
+      mode: "llm",
+    });
+  });
+
+  it("sends named options, joining fields with commas", async () => {
+    const { db, seen } = capture();
+    await extract(db, "example.com", "article", "json", {
+      fields: ["links", "meta"],
+      paging: false,
+      maxTags: 5,
+      tagConfidence: 0.5,
+      categoryConfidence: 0.25,
+      discussion: true,
+      naturalLanguage: ["entities", "sentiment"],
+      summaryNumSentences: 3,
+      useProxy: "default",
+    });
+    expect(Object.fromEntries(seen.params!)).toMatchObject({
+      fields: "links,meta",
+      paging: "false",
+      maxTags: "5",
+      tagConfidence: "0.5",
+      categoryConfidence: "0.25",
+      discussion: "true",
+      naturalLanguage: "entities,sentiment",
+      summaryNumSentences: "3",
+      useProxy: "default",
+    });
+    expect(seen.params!.has("mode")).toBe(false);
+  });
+
+  it("sends discussion and analyze-only options", async () => {
+    const { db, seen } = capture();
+    await extract(db, "example.com", "discussion", "json", { maxPages: 3 });
+    expect(seen.params!.get("maxPages")).toBe("3");
+    await extract(db, "example.com", "analyze", "json", { fallback: "article" });
+    expect(seen.params!.get("fallback")).toBe("article");
+  });
+
+  it("an explicit mode overrides the fmt=markdown mapping", async () => {
+    const { db, seen } = capture();
+    await extract(db, "example.com", "analyze", "markdown", { mode: "article" });
+    expect(seen.params!.get("mode")).toBe("article");
+    await extract(db, "example.com", "analyze", "markdown");
+    expect(seen.params!.get("mode")).toBe("llm");
+  });
+
+  it("passes proxy/proxyAuth through typed extra", async () => {
+    const { db, seen } = capture();
+    await extract(db, "example.com", "article", "json", { extra: { proxy: "host:80", proxyAuth: "u:p" } });
+    expect(seen.params!.get("proxy")).toBe("host:80");
+    expect(seen.params!.get("proxyAuth")).toBe("u:p");
+  });
+
+  describe("timeout vs transport timeout", () => {
+    function spyTransport() {
+      const spy = vi.spyOn(AbortSignal, "timeout");
+      return () => spy.mock.calls.map((c) => c[0]);
+    }
+
+    it("sends a caller timeout on the wire and raises the transport timeout above it", async () => {
+      const calls = spyTransport();
+      const { db, seen } = capture(30_000);
+      await extract(db, "example.com", "article", "json", { timeout: 90_000 });
+      expect(seen.params!.get("timeout")).toBe("90000");
+      expect(calls()).toEqual([100_000]);
+    });
+
+    it("keeps a larger client timeout when the caller's timeout is small", async () => {
+      const calls = spyTransport();
+      const { db, seen } = capture(120_000);
+      await extract(db, "example.com", "article", "json", { timeout: 5_000 });
+      expect(seen.params!.get("timeout")).toBe("5000");
+      expect(calls()).toEqual([120_000]);
+    });
+
+    it("never aborts before the default 30s wire timeout can answer", async () => {
+      const calls = spyTransport();
+      const { db } = capture(10_000);
+      await extract(db, "example.com");
+      expect(calls()).toEqual([40_000]);
+    });
   });
 });

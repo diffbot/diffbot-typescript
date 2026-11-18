@@ -1,0 +1,220 @@
+name: Release
+
+# Publishes @diffbot/typescript to npm (with provenance) and creates the matching
+# GitHub Release. Triggered by pushing a version tag (e.g. v0.6.0); also runnable
+# manually, which runs every gate plus `npm publish --dry-run` and publishes nothing.
+#
+# npm auth: trusted publishing (OIDC) first. If no trusted publisher is configured on
+# npmjs.com, npm falls back to the NPM_TOKEN repository secret (if set).
+# Live tests are deliberately NOT run here; see live-tests.yml.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Re-pushing a tag (or re-dispatching) queues behind an in-flight run for the same
+# ref. Unlike a binaries build, a publish must never be cancelled halfway.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fail fast if package.json and src/constants.ts disagree, or the tag doesn't
+      # match them, so npm, the User-Agent (VERSION) and the GitHub Release can never
+      # report different versions.
+      - name: Check tag matches package version
+        id: version
+        run: |
+          set -euo pipefail
+          pkg=$(node -p 'require("./package.json").version')
+          const=$(sed -n 's/^export const VERSION = "\([^"]*\)";.*/\1/p' src/constants.ts)
+          if [ -z "$const" ]; then
+            echo "::error::Could not read VERSION from src/constants.ts."
+            exit 1
+          fi
+          if [ "$pkg" != "$const" ]; then
+            echo "::error::package.json version ${pkg} does not match src/constants.ts VERSION ${const}."
+            exit 1
+          fi
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag=${GITHUB_REF_NAME#v}
+            if [ "$pkg" != "$tag" ]; then
+              echo "::error::Tag v${tag} does not match package.json version ${pkg}. Bump package.json and src/constants.ts, then re-tag."
+              exit 1
+            fi
+          fi
+          echo "version=${pkg}" >> "$GITHUB_OUTPUT"
+          echo "Versions agree: ${pkg}"
+
+      # Checked before publishing so a tag without release notes fails before
+      # anything reaches npm.
+      - name: Check CHANGELOG.md has a section for this version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if ! grep -qF "## [${VERSION}]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [${VERSION}]' section."
+            exit 1
+          fi
+
+  test:
+    name: Gates (Node ${{ matrix.node-version }})
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm test:types
+      # `build` runs the `postbuild` check (scripts/assert-no-node-builtins.mjs).
+      - run: pnpm build
+
+  workers:
+    name: cloudflare worker fixture
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm install --frozen-lockfile
+        working-directory: fixtures/worker
+      - run: pnpm exec wrangler deploy --dry-run --outdir .wrangler-build
+        working-directory: fixtures/worker
+      - run: pnpm exec vitest run
+        working-directory: fixtures/worker
+
+  publish:
+    name: Publish to npm
+    needs: [verify, test, workers]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing (OIDC) and provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm >= 11.5.1; Node 22 bundles npm 10.
+      - run: npm install -g npm@^11.5.1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - name: Publish
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          name=$(node -p 'require("./package.json").name')
+          # Prereleases (v1.2.0-rc.1) go to the "next" dist-tag, never "latest".
+          dist_tag=latest
+          case "$VERSION" in *-*) dist_tag=next ;; esac
+
+          # Only a tag push publishes. A manual dispatch (even on a tag ref) is a dry run.
+          if [ "${GITHUB_EVENT_NAME}" != "push" ] || [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            echo "Not a tag push: dry run only."
+            npm publish --dry-run --access public --tag "$dist_tag"
+            exit 0
+          fi
+
+          # Lets a failed run be re-run after the npm step already succeeded.
+          if npm view "${name}@${VERSION}" version >/dev/null 2>&1; then
+            echo "${name}@${VERSION} is already on npm; skipping publish."
+            exit 0
+          fi
+
+          # npm tries OIDC trusted publishing first and only falls back to this
+          # token when no trusted publisher matches. Never echo it.
+          if [ -n "${NPM_TOKEN}" ]; then
+            export NODE_AUTH_TOKEN="${NPM_TOKEN}"
+            echo "NPM_TOKEN secret present (used only if trusted publishing is not configured)."
+          else
+            echo "No NPM_TOKEN secret; relying on npm trusted publishing."
+          fi
+          npm publish --access public --provenance --tag "$dist_tag"
+
+  release:
+    name: Publish GitHub Release
+    needs: [verify, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Only for real tag pushes; workflow_dispatch runs just the gates + dry run.
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract release notes from CHANGELOG.md
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Everything after "## [VERSION]" up to the next "## " heading.
+          awk -v hdr="## [${VERSION}]" '
+            index($0, hdr) == 1 { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > "${RUNNER_TEMP}/notes.md"
+          if ! grep -q '[^[:space:]]' "${RUNNER_TEMP}/notes.md"; then
+            echo "::error::CHANGELOG.md section for ${VERSION} is empty."
+            exit 1
+          fi
+          wc -l "${RUNNER_TEMP}/notes.md"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          repo="${GITHUB_REPOSITORY}"
+          if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+            echo "Release $tag already exists; leaving its notes as they are."
+            exit 0
+          fi
+          prerelease=()
+          case "$VERSION" in *-*) prerelease=(--prerelease) ;; esac
+          gh release create "$tag" \
+            --repo "$repo" \
+            --title "$tag" \
+            --verify-tag \
+            --notes-file "${RUNNER_TEMP}/notes.md" \
+            "${prerelease[@]}"

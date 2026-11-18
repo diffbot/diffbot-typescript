@@ -46,15 +46,20 @@ settings from the client you hand it.
 | Option | Default | Used by |
 |--------|---------|---------|
 | `token` | — (required) | all |
-| `timeout` | `30000` (ms) | all |
+| `timeout` | `30000` (ms) | all; overridable per call (see below) |
+| `retry` | on, 3 attempts | all; `false` disables, or pass a `RetryPolicy` to tune it |
 | `fetch` | global `fetch` | all |
-| `analyzeUrl` | `https://api.diffbot.com/v3` | `extract` |
-| `crawlerUrl` | `https://api.diffbot.com/v3/crawl` | `crawl`, `crawlListJobs`, `crawlGetJob`, `crawlDeleteJob` |
-| `llmUrl` | `https://llm.diffbot.com/rag/v1/chat/completions` | `ask`, `askJson` |
-| `webSearchUrl` | `https://llm.diffbot.com/api/v1/web_search` | `webSearch` |
-| `nlpUrl` | `https://nl.diffbot.com/v1/` | `entities` |
-| `dqlUrl` | `https://kg.diffbot.com/kg/v3/dql` | `dql`, `dqlParallel` |
-| `ontologyUrl` | `https://kg.diffbot.com/kg/ontology` | `dqlFetchOntology`, `dqlFetchOntologyText`, `OntologyStore` |
+| `apiBase` | `https://api.diffbot.com` | `extract`, `account`, `verifyToken`, `crawl`, `crawlListJobs`, `crawlGetJob`, `crawlDownload`, `crawlDeleteJob` |
+| `kgBase` | `https://kg.diffbot.com` | `dql`, `dqlParallel`, `dqlFetchOntology`, `dqlFetchOntologyText`, `OntologyStore` |
+| `llmBase` | `https://llm.diffbot.com` | `ask`, `askJson`, `webSearch` |
+| `nlpBase` | `https://nl.diffbot.com` | `entities` |
+| `analyzeUrl` | derived from `apiBase` | `extract` |
+| `crawlerUrl` | derived from `apiBase` | `crawl`, `crawlListJobs`, `crawlGetJob`, `crawlDeleteJob` |
+| `llmUrl` | derived from `llmBase` | `ask`, `askJson` |
+| `webSearchUrl` | derived from `llmBase` | `webSearch` |
+| `nlpUrl` | derived from `nlpBase` | `entities` |
+| `dqlUrl` | derived from `kgBase` | `dql`, `dqlParallel` |
+| `ontologyUrl` | derived from `kgBase` | `dqlFetchOntology`, `dqlFetchOntologyText`, `OntologyStore` |
 
 ```typescript
 import { DiffbotClient } from "@diffbot/typescript";
@@ -66,8 +71,35 @@ const db = new DiffbotClient({
 });
 ```
 
-`analyzeUrl` and `crawlerUrl` are bases that the SDK appends to (`/${api}` and `/data`
-respectively); the rest are complete endpoints, used as given.
+Point the whole SDK at a staging environment with one option instead of one per endpoint:
+
+```typescript
+const staging = new DiffbotClient({ token: "YOUR_TOKEN", apiBase: "https://staging.example.com" });
+```
+
+`apiBase`/`kgBase`/`llmBase`/`nlpBase` set the host for every endpoint on that host at
+once. The older per-endpoint options (`analyzeUrl`, `crawlerUrl`, `llmUrl`,
+`webSearchUrl`, `nlpUrl`, `dqlUrl`, `ontologyUrl`) still work and win over the matching
+base when both are set; `analyzeUrl` and `crawlerUrl` are bases the SDK appends to
+(`/${api}` and `/data` respectively), the rest are complete endpoints used as given.
+
+Requests retry `429` and `5xx` responses (and connection errors) with backoff and
+jitter, honoring a `Retry-After` header, by default. Disable retries or tune the policy:
+
+```typescript
+const db = new DiffbotClient({ token: "YOUR_TOKEN", retry: false });
+// or: retry: { maxAttempts: 5 }
+```
+
+`maxDelayMs` (default 5000) caps the backoff and is also the ceiling for `Retry-After`.
+If the server asks for a longer wait (in seconds or as an HTTP date), the SDK does not
+sleep or retry: the call fails at once with `RateLimitError` (`retryAfter` holds the raw
+header) or, for a 5xx, `APIError` (see `headers["retry-after"]`), so you decide when to
+try again.
+
+The transport also accepts a per-call `timeout` (ms) override and a `retryable: false`
+escape hatch; the SDK uses the latter internally for `crawlDeleteJob`, a GET-shaped
+mutation that must not be retried blindly.
 
 Passing `fetch` replaces the transport, which is the hook for retries, logging, extra
 headers, or mocking in tests:
@@ -89,6 +121,32 @@ import { DiffbotClient, extract } from "@diffbot/typescript";
 
 const db = new DiffbotClient({ token: "YOUR_TOKEN" });
 const data = await extract(db, "https://www.example.com");
+```
+
+Pass an optional options object as the fifth argument (use `undefined` to keep the
+defaults for `api` and `fmt`). `timeout` is the server-side limit in ms (default 30000);
+the SDK keeps its own request timeout at least 10 s above it.
+
+```typescript
+const article = await extract(db, "https://www.example.com", "article", "json", {
+  fields: ["links", "meta"],
+  timeout: 60_000,
+  naturalLanguage: ["entities", "sentiment"],
+});
+```
+
+### Check a token and read account usage
+
+`verifyToken()` is `true` for an accepted token and `false` only when the API rejects it
+(`AuthError`); network errors, rate limits and 5xx responses are thrown. The account
+response contains your token and any child tokens, so don't log it.
+
+```typescript
+import { account, verifyToken } from "@diffbot/typescript";
+
+if (await verifyToken(db)) {
+  const { plan, usage } = await account(db, { days: 7 });
+}
 ```
 
 ### Ask Diffbot LLM
@@ -154,12 +212,49 @@ for await (const event of crawl(db, "https://www.example.com", { hops: 1 })) {
 }
 ```
 
+To start a crawl without holding a connection open (for example inside a tool call),
+start it without `watch`, poll the job, then download the results:
+
+```typescript
+import { crawl, crawlDownload, crawlGetJob } from "@diffbot/typescript";
+
+for await (const _ of crawl(db, "https://www.example.com", { jobName: "my-job" })) {
+  // yields a single job_created event when `watch` is off
+}
+const job = await crawlGetJob(db, "my-job"); // poll until job?.jobStatus?.status is terminal
+const records = await crawlDownload(db, "my-job"); // CrawlDataRecord[]
+const csv = await crawlDownload(db, "my-job", { format: "csv" }); // string
+```
+
+Crawl-create options beyond the basics: `urlCrawlRegEx`, `urlProcessRegEx`,
+`pageProcessPattern`, `maxToCrawlPerSubdomain`, `maxToProcessPerSubdomain`,
+`useCanonical`, `notifyWebhook`, `notifyEmail`. `customHeaders` takes one
+`"Name:value"` string or an array of them.
+
+```typescript
+crawl(db, "https://www.example.com", {
+  urlProcessRegEx: "/products/",
+  customHeaders: ["Accept-Language:en-us", "X-Test:1"],
+});
+```
+
 ### Query the Knowledge Graph
 
 ```typescript
 import { dql } from "@diffbot/typescript";
 
 const results = await dql(db, 'type:Organization name:"Diffbot"');
+```
+
+Named options beyond `size`/`from`/`format`/`filter`/`exportspec`: `type`
+(`"query" | "text" | "queryTextFallback" | "crawl"`), `col`, `filterExclude`,
+`exportseparator`, `exportfile`, `jsonmode`, `nonCanonicalFacts`, `noDedupArticles`,
+`cluster`. They go in the POST body. A named key repeated in `extra` throws
+`ValidationError`.
+
+```typescript
+// Search a crawl collection
+const pages = await dql(db, "title:Pricing", { type: "crawl", col: "my-job", size: 5 });
 ```
 
 ### Web Search
@@ -178,6 +273,13 @@ const brief = await webSearch(db, "diffbot knowledge graph", { numResults: 5, sn
 
 // "full" with a url: query returns the whole stored page
 const page = await webSearch(db, "url:https://en.wikipedia.org/wiki/Knowledge_graph", { snippetLength: "full" });
+```
+
+`text` also accepts 1-5 queries, sent as repeated `text=` params (more or fewer throws
+`ValidationError`):
+
+```typescript
+const multi = await webSearch(db, ["diffbot knowledge graph", "diffbot extract api"], { numResults: 3 });
 ```
 
 ### Caching the Knowledge Graph ontology
@@ -210,6 +312,21 @@ wanting a filesystem-backed cache should use `FileOntologyStore` from
 import { entities } from "@diffbot/typescript";
 
 const result = await entities(db, "Apple CEO Tim Cook announced record quarterly earnings.");
+```
+
+For other analyses on the same endpoint (single document), use `nlp()`; the result type is
+narrowed to the fields you ask for. `entities()` stays the fixed `entities,sentiment` shortcut.
+
+```typescript
+import { nlp } from "@diffbot/typescript";
+
+const result = await nlp(db, "Headline\nApple CEO Tim Cook announced record quarterly earnings.", {
+  fields: ["summary", "language"],
+  format: "plain text with title",
+  documentType: "news article",
+  customSummary: { maxNumberOfSentences: 1 },
+});
+console.log(result.summary, result.language);
 ```
 
 ### Automatic cleanup with `await using`

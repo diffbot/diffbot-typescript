@@ -1,10 +1,14 @@
 import type { DiffbotClient } from "./client.js";
+import { parseJsonText, unsafeCast } from "./decode.js";
 import { ValidationError } from "./errors.js";
-import { readBodyText, raiseForStatus } from "./http.js";
+import { ensureOk } from "./http.js";
 import type { JsonObject } from "./json.js";
+import type { ChatCompletionChunk, ChatCompletionRequest, ChatRole } from "./types/undocumented.js";
+
+export type { ChatRole } from "./types/undocumented.js";
 
 export interface ChatMessage {
-  role: string;
+  role: ChatRole;
   content: string;
 }
 
@@ -14,7 +18,7 @@ const MODEL = "diffbot-small-xl";
 export const RESPONSE_FORMAT_TYPES = ["text", "json_object", "json_schema"] as const;
 export type ResponseFormatType = (typeof RESPONSE_FORMAT_TYPES)[number];
 
-export interface ResponseFormat {
+export interface ResponseFormat extends JsonObject {
   type: ResponseFormatType;
   json_schema?: { name?: string; schema: JsonObject };
 }
@@ -33,6 +37,9 @@ export interface AskOptions {
  * without an error, so prefer this helper over hand-building the object.
  */
 export function jsonSchemaFormat(schema: JsonObject, name = "response"): ResponseFormat {
+  // These checks are unreachable if the caller respects `schema: JsonObject` — they
+  // defend against a plain-JS caller (or an `any`/`as` escape) passing something else.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (schema === null || typeof schema !== "object" || Array.isArray(schema)) {
     throw new ValidationError("schema must be a JSON Schema object");
   }
@@ -42,17 +49,22 @@ export function jsonSchemaFormat(schema: JsonObject, name = "response"): Respons
 /** Reject shapes the endpoint would accept but silently not enforce. */
 function validateResponseFormat(responseFormat: ResponseFormat | undefined): void {
   if (responseFormat === undefined) return;
+  // Same rationale as jsonSchemaFormat above: defends against a caller not using the
+  // declared `ResponseFormat` type, where these fields aren't actually guaranteed.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (responseFormat === null || typeof responseFormat !== "object" || Array.isArray(responseFormat)) {
     throw new ValidationError("responseFormat must be an object");
   }
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   const fmtType = responseFormat.type ?? "text";
-  if (!(RESPONSE_FORMAT_TYPES as readonly string[]).includes(fmtType)) {
+  if (!RESPONSE_FORMAT_TYPES.includes(fmtType)) {
     throw new ValidationError(
       `responseFormat type must be one of ${RESPONSE_FORMAT_TYPES.join(", ")}; got ${JSON.stringify(fmtType)}`,
     );
   }
   if (fmtType === "json_schema") {
     const jsonSchema = responseFormat.json_schema;
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (jsonSchema === null || typeof jsonSchema !== "object" || !("schema" in jsonSchema)) {
       throw new ValidationError(
         'responseFormat { type: "json_schema" } requires the schema nested as ' +
@@ -123,15 +135,14 @@ function resolveFormat(
   return jsonSchemaFormat(schema ?? ANY_OBJECT_SCHEMA);
 }
 
+function isFunctionCallLeak(value: unknown): value is { name: string; arguments: unknown } {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  return "name" in value && value.name === "functioncall" && "arguments" in value;
+}
+
 /** Catch the internal tool call surfacing as the answer (see ANY_OBJECT_SCHEMA). */
 function checkToolCallLeak<T>(parsed: T): T {
-  if (
-    parsed !== null &&
-    typeof parsed === "object" &&
-    !Array.isArray(parsed) &&
-    (parsed as JsonObject).name === "functioncall" &&
-    "arguments" in (parsed as JsonObject)
-  ) {
+  if (isFunctionCallLeak(parsed)) {
     throw new ValidationError(
       "the model returned its internal tool call instead of an answer; this happens with " +
         'responseFormat { type: "json_object" } because the server applies no grammar to it. ' +
@@ -143,11 +154,8 @@ function checkToolCallLeak<T>(parsed: T): T {
 
 function parseChunk(line: string): string | undefined {
   try {
-    const chunk = JSON.parse(line.replace(/^data: /, "")) as {
-      choices?: Array<{ delta?: { content?: string } }>;
-    };
-    const content = chunk.choices?.[0]?.delta?.content;
-    return content ?? undefined;
+    const chunk = parseJsonText<ChatCompletionChunk>(line.replace(/^data: /, ""));
+    return chunk.choices?.[0]?.delta?.content ?? undefined;
   } catch {
     return undefined;
   }
@@ -164,7 +172,7 @@ async function* linesFromStream(body: ReadableStream<Uint8Array>): AsyncGenerato
   const decoder = new TextDecoder();
   let buffer = "";
 
-  while (true) {
+  for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
@@ -184,15 +192,11 @@ export async function* ask(
 ): AsyncGenerator<string> {
   validateResponseFormat(options.responseFormat);
   const headers = { Authorization: `Bearer ${client.token}` };
-  const payload: JsonObject = { model: MODEL, messages, stream: true };
+  const payload: ChatCompletionRequest = { model: MODEL, messages, stream: true };
   if (options.responseFormat !== undefined) payload.response_format = options.responseFormat;
 
   const response = await client.http.post(client.llmUrl, { headers, json: payload });
-  if (!response.ok) {
-    const body = await readBodyText(response);
-    raiseForStatus(response, body);
-    return;
-  }
+  await ensureOk(response);
 
   if (response.body) {
     for await (const line of linesFromStream(response.body)) {
@@ -209,6 +213,16 @@ export async function* ask(
   }
 }
 
+export interface AskJsonOptions<T> extends AskOptions {
+  /**
+   * Checks (and narrows to) `T` instead of trusting an unchecked cast — e.g. a
+   * hand-written type guard, or `(v) => mySchema.parse(v)` from a validation
+   * library of your choice. Without it, the result is cast to `T` unchecked,
+   * as before.
+   */
+  parse?: (value: unknown) => T;
+}
+
 /**
  * Ask the Diffbot LLM and return the answer parsed as JSON. With `schema` (a JSON Schema
  * object) the model is constrained to it by grammar; without one it falls back to
@@ -218,10 +232,11 @@ export async function askJson<T = unknown>(
   client: DiffbotClient,
   messages: ChatMessage[],
   schema?: JsonObject,
-  options: AskOptions = {},
+  options: AskJsonOptions<T> = {},
 ): Promise<T> {
   const responseFormat = resolveFormat(schema, options.responseFormat);
   let text = "";
   for await (const chunk of ask(client, messages, { responseFormat })) text += chunk;
-  return checkToolCallLeak(extractJson(text)) as T;
+  const parsed = checkToolCallLeak(extractJson(text));
+  return options.parse ? options.parse(parsed) : unsafeCast<T>(parsed);
 }

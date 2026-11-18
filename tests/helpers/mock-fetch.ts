@@ -13,6 +13,8 @@ export type MockHandler = (request: MockRequest) => Response | Promise<Response>
 function toTextBody(body: RequestInit["body"]): string | undefined {
   if (body == null) return undefined;
   if (typeof body === "string") return body;
+  if (body instanceof URLSearchParams) return body.toString();
+  if (body instanceof Uint8Array) return new TextDecoder().decode(body);
   return undefined;
 }
 
