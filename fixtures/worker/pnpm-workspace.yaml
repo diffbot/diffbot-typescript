@@ -1,0 +1,8 @@
+# Makes this fixture its own pnpm workspace root, with its own pnpm-lock.yaml.
+# Without this file, pnpm walks up to the repo's root pnpm-workspace.yaml,
+# treats this directory as part of that workspace, and `pnpm install` here
+# skips the fixture's own dependencies (so `pnpm exec wrangler` is not found).
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd
