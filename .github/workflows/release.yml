@@ -1,20 +1,32 @@
 name: Release
 
-# Publishes @diffbot/typescript to npm (with provenance) and creates the matching
-# GitHub Release. Triggered by pushing a version tag (e.g. v0.6.0); also runnable
-# manually, which runs every gate plus `npm publish --dry-run` and publishes nothing.
-# A dispatch with action "move-next" instead only re-points the npm `next` dist-tag
-# at an already-published version (see the move-next job).
+# Publishes @diffbot/typescript to npm (trusted publishing, with provenance) and
+# creates the matching GitHub Release. This file follows the shared npm release
+# workflow standard (diffbot-dev-docs: docs/conventions/npm-release-workflow.md);
+# keep it in sync with the other npm TypeScript repos.
 #
-# npm auth: trusted publishing (OIDC) only. No token is passed to npm, so a
-# misconfigured trusted publisher fails the publish instead of silently using a token.
+# Jobs: verify (version / tag / CHANGELOG) -> gates (+ workers) -> publish (npm)
+# -> github-release; move-next is a separate manual action.
 #
-# Release candidates: set package.json and src/constants.ts to a prerelease version
-# (e.g. 0.6.0-rc.0) and push the matching tag (v0.6.0-rc.0). Any version containing
-# "-" is published under the "next" dist-tag (so "latest" is untouched) and its GitHub
-# Release is marked as a prerelease. Its notes come from a "## [0.6.0-rc.0]" CHANGELOG
-# section if there is one, otherwise from the base version's "## [0.6.0]" section.
-# Live tests are deliberately NOT run here; see live-tests.yml.
+# - Pushing a version tag (v1.2.3, v1.2.3-rc.0) is the only thing that publishes.
+# - workflow_dispatch (action "dry-run", the default) runs every gate plus
+#   `npm publish --dry-run` and publishes nothing, even on a tag ref.
+# - workflow_dispatch with action "move-next" only re-points the npm `next`
+#   dist-tag at an already-published version (see the move-next job).
+#
+# npm auth: trusted publishing (OIDC) only, bound to this file name. No token is
+# passed to npm, so a misconfigured trusted publisher fails the publish instead of
+# silently using a token.
+#
+# Versions: any version containing "-" (1.2.0-rc.0) publishes under the "next"
+# dist-tag ("latest" is untouched) and its GitHub Release is a prerelease. A final
+# version publishes as "latest" and then also moves "next". Release notes come
+# from the "## [1.2.0-rc.0]" CHANGELOG section if there is one, otherwise from the
+# base version's "## [1.2.0]" section.
+#
+# Repo-specific: package.json must also match src/constants.ts VERSION; gates run
+# on Node 18/20/22 plus the Cloudflare worker fixture. Live tests are deliberately
+# NOT run here; see live-tests.yml.
 on:
   push:
     tags: ["v*"]
@@ -40,7 +52,7 @@ permissions:
   contents: read
 
 # Re-pushing a tag (or re-dispatching) queues behind an in-flight run for the same
-# ref. Unlike a binaries build, a publish must never be cancelled halfway.
+# ref. A publish must never be cancelled halfway.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -56,6 +68,8 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       # Fail fast if package.json and src/constants.ts disagree, or the tag doesn't
       # match them, so npm, the User-Agent (VERSION) and the GitHub Release can never
@@ -91,7 +105,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          # A prerelease (0.6.0-rc.0) may reuse its base version's section (0.6.0).
+          # A prerelease (1.2.0-rc.0) may reuse its base version's section (1.2.0).
           if grep -qF "## [${VERSION}]" CHANGELOG.md; then
             echo "Found '## [${VERSION}]'."
           elif [ "${VERSION%%-*}" != "${VERSION}" ] && grep -qF "## [${VERSION%%-*}]" CHANGELOG.md; then
@@ -101,7 +115,7 @@ jobs:
             exit 1
           fi
 
-  test:
+  gates:
     name: Gates (Node ${{ matrix.node-version }})
     needs: verify
     runs-on: ubuntu-latest
@@ -111,6 +125,8 @@ jobs:
         node-version: [18, 20, 22]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -125,12 +141,14 @@ jobs:
       - run: pnpm build
 
   workers:
-    name: cloudflare worker fixture
+    name: Cloudflare worker fixture
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -147,7 +165,7 @@ jobs:
 
   publish:
     name: Publish to npm
-    needs: [verify, test, workers]
+    needs: [verify, gates, workers]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -155,31 +173,39 @@ jobs:
       id-token: write # npm trusted publishing (OIDC) and provenance
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
           registry-url: https://registry.npmjs.org
-      # Trusted publishing needs npm >= 11.5.1; Node 22 bundles npm 10.
-      - run: npm install -g npm@^11.5.1
+      # Trusted publishing needs npm >= 11.5.1 and `npm dist-tag` over OIDC needs
+      # >= 11.21.0; Node 22 bundles npm 10. Pinned to a minimum, not `latest`.
+      - name: Update npm
+        run: |
+          npm install -g npm@^11.21.0
+          npm --version
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
+      # npm, not pnpm, so the OIDC token exchange works. --ignore-scripts: dist/ was
+      # built above, so prepublishOnly must not rebuild it.
       - name: Publish
         env:
           VERSION: ${{ needs.verify.outputs.version }}
         run: |
           set -euo pipefail
           name=$(node -p 'require("./package.json").name')
-          # Prereleases (v1.2.0-rc.1) go to the "next" dist-tag, never "latest".
-          dist_tag=latest
-          case "$VERSION" in *-*) dist_tag=next ;; esac
+          # The dist-tag comes from the version, not the tag name: a prerelease
+          # (1.2.0-rc.0) goes to "next", never "latest".
+          case "$VERSION" in *-*) dist_tag=next ;; *) dist_tag=latest ;; esac
 
           # Only a tag push publishes. A manual dispatch (even on a tag ref) is a dry run.
           if [ "${GITHUB_EVENT_NAME}" != "push" ] || [ "${GITHUB_REF_TYPE}" != "tag" ]; then
             echo "Not a tag push: dry run only."
-            npm publish --dry-run --access public --tag "$dist_tag"
+            npm publish --dry-run --access public --ignore-scripts --tag "$dist_tag"
             exit 0
           fi
 
@@ -191,7 +217,7 @@ jobs:
 
           # Trusted publishing (OIDC) only; no token is exported.
           echo "Publishing ${name}@${VERSION} with dist-tag ${dist_tag} via npm trusted publishing."
-          npm publish --access public --provenance --tag "$dist_tag"
+          npm publish --access public --provenance --ignore-scripts --tag "$dist_tag"
 
       # A final release also moves `next`, so `next` is never behind `latest`.
       # Uses npm trusted publishing (OIDC) for `npm dist-tag`, which needs npm
@@ -213,17 +239,19 @@ jobs:
             echo "::warning::Could not point next at ${name}@${version}. Enable 'Allow npm dist-tag' on the trusted publisher for ${name} at npmjs.com, or run: npm dist-tag add ${name}@${version} next"
           fi
 
-  release:
+  github-release:
     name: Publish GitHub Release
     needs: [verify, publish]
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Only for real tag pushes; workflow_dispatch runs just the gates + dry run.
+    # Only for real tag pushes; a dispatch runs just the gates + publish dry run.
     if: github.event_name == 'push' && github.ref_type == 'tag'
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Extract release notes from CHANGELOG.md
         env:
@@ -259,6 +287,7 @@ jobs:
             echo "Release $tag already exists; leaving its notes as they are."
             exit 0
           fi
+          # Any version containing "-" (1.2.0-rc.0) is a GitHub prerelease.
           prerelease=()
           case "$VERSION" in *-*) prerelease=(--prerelease) ;; esac
           gh release create "$tag" \
@@ -293,7 +322,7 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: Update npm
         run: |
-          npm install -g npm@latest
+          npm install -g npm@^11.21.0
           npm --version
       - name: Point next at an existing version
         env:
