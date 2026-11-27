@@ -203,9 +203,17 @@ jobs:
           case "$VERSION" in *-*) dist_tag=next ;; *) dist_tag=latest ;; esac
 
           # Only a tag push publishes. A manual dispatch (even on a tag ref) is a dry run.
+          # npm >= 11.21 errors on `npm publish --dry-run` if the version is already
+          # on the registry, so already-published versions are packed only.
           if [ "${GITHUB_EVENT_NAME}" != "push" ] || [ "${GITHUB_REF_TYPE}" != "tag" ]; then
             echo "Not a tag push: dry run only."
-            npm publish --dry-run --access public --ignore-scripts --tag "$dist_tag"
+            if npm view "${name}@${VERSION}" version >/dev/null 2>&1; then
+              echo "${name}@${VERSION} is already on npm; packing only."
+              npm pack --pack-destination "${RUNNER_TEMP}"
+              tar -tzf "${RUNNER_TEMP}"/*.tgz
+            else
+              npm publish --dry-run --access public --ignore-scripts --tag "$dist_tag"
+            fi
             exit 0
           fi
 
