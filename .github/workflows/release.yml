@@ -3,6 +3,8 @@ name: Release
 # Publishes @diffbot/typescript to npm (with provenance) and creates the matching
 # GitHub Release. Triggered by pushing a version tag (e.g. v0.6.0); also runnable
 # manually, which runs every gate plus `npm publish --dry-run` and publishes nothing.
+# A dispatch with action "move-next" instead only re-points the npm `next` dist-tag
+# at an already-published version (see the move-next job).
 #
 # npm auth: trusted publishing (OIDC) only. No token is passed to npm, so a
 # misconfigured trusted publisher fails the publish instead of silently using a token.
@@ -17,6 +19,22 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      action:
+        description: >-
+          dry-run: run the release gates and a publish dry run (publishes nothing).
+          move-next: ONLY point the npm `next` dist-tag at an already-published
+          version; no build, no publish, no GitHub Release.
+        type: choice
+        options: [dry-run, move-next]
+        default: dry-run
+      version:
+        description: >-
+          move-next only: the already-published version `next` should point at
+          (e.g. 1.2.3 or 1.2.4-rc.0). Empty = the current `latest`.
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -30,6 +48,8 @@ concurrency:
 jobs:
   verify:
     name: Verify version
+    # A move-next dispatch runs only the move-next job below.
+    if: github.event_name != 'workflow_dispatch' || inputs.action != 'move-next'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -247,3 +267,54 @@ jobs:
             --verify-tag \
             --notes-file "${RUNNER_TEMP}/notes.md" \
             "${prerelease[@]}"
+
+  # Manual only (action: move-next). Points `next` at a version that is already
+  # on npm, e.g. after a final release whose "Point next at final release" step
+  # warned, or to repair a `next` that fell behind `latest`. It never builds,
+  # publishes or touches GitHub Releases. It lives in release.yml because the
+  # package's npm trusted publisher is bound to this workflow file; `npm
+  # dist-tag` over OIDC needs npm >= 11.21.0 / 12.2.0 and "Allow npm dist-tag"
+  # enabled on that trusted publisher.
+  move-next:
+    name: Move npm next dist-tag
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'move-next'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing (OIDC) for `npm dist-tag`
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Update npm
+        run: |
+          npm install -g npm@latest
+          npm --version
+      - name: Point next at an existing version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          name=$(node -p 'require("./package.json").name')
+          echo "Before: $(npm view "$name" dist-tags --json | tr -d '\n ')"
+          version="${INPUT_VERSION}"
+          if [ -z "$version" ]; then
+            version=$(npm view "$name" dist-tags.latest)
+            echo "No version given; using the current latest: ${version}"
+          fi
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::'${version}' is not a version like 1.2.3 or 1.2.3-rc.0."
+            exit 1
+          fi
+          if ! npm view "${name}@${version}" version >/dev/null 2>&1; then
+            echo "::error::${name}@${version} is not on npm; move-next only retags published versions."
+            exit 1
+          fi
+          # Trusted publishing (OIDC) only; no token is exported.
+          npm dist-tag add "${name}@${version}" next
+          echo "After: $(npm view "$name" dist-tags --json | tr -d '\n ')"
